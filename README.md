@@ -2,7 +2,7 @@
 
 Inspired by vnetserg/traffic-v2, although significantly rewritten and complemented.
 
-## Key differences:
+## Key features
 
 * Added configuration of testing scenarios via the *config.ini* file
 
