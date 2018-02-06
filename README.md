@@ -2,9 +2,9 @@
 
 Inspired by vnetserg/traffic-v2, although significantly rewritten and complemented.
 
-##Key differences:
+## Key differences:
 
-* Added configuration of testing scenarios via the 'config.ini' file
+* Added configuration of testing scenarios via the *config.ini* file
 
 * Added support of unidirectional flows(on the cost of some stat. features)
 
