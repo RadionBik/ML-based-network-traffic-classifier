@@ -1,20 +1,16 @@
 # Network traffic classifier based on statistical properties of application flows
 
-Inspired by vnetserg/traffic-v2, although significantly rewritten and complemented.
-
 ## Key features
 
-* Added configuration of testing scenarios via the *config.ini* file
+* Configuration of testing scenarios via the *config.ini* file
 
-* Added support of unidirectional flows(on the cost of some stat. features)
+* Support of various ML algorithms: Logistic regression, SVM, Decision Tree, Gradient Boosting, Random Forest, Multilayer Perceptron.
 
-* Added various ML algorithms: Logistic regression, SVM, Decision Tree, Gradient Boosting, Random Forest, Multilayer Perceptron.
+* Automatic optimization of the algorithms' parameters (configured in the *config.ini* file)
 
-* Added automatic optimization of the algorithms' parameters (can be enabled in the *config.ini* file)
+* NdpiReader binary v2.1.0, compiled for kernel 4.4.x
 
-* Update of the ndpiReader binary to 2.1.0, compiled for kernel 4.4.x
-
-* Ported to Python3.6
+* The *pcaptocsv.py* module is taken from `vnetserg/traffic-v2`, ported to Python3 and added support of unidirectional flows(on the cost of some stat. features)
 
 To run the code, the dpkt, numpy, sklearn and pandas libraries for Python 3.x need to be installed. 
 

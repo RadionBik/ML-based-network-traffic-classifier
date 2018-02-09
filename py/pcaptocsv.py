@@ -9,7 +9,7 @@ import pandas as ps
 import numpy as np
 import socket
 import configparser
-
+import os
 # Full feature list of a flow:
 FEATURES = [
     "proto", # app layer protocol
@@ -279,7 +279,7 @@ def main():
                     flows[feature].append(stats[feature])
     data = ps.DataFrame(flows)
     print(data.proto.value_counts())
-	config = configparser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read(os.pardir+os.sep+'config.ini')
     data.to_csv(os.pardir+os.sep+config['GeneralSettings']['folderWithCSVfiles']+os.sep+args.output, index=False)
 
