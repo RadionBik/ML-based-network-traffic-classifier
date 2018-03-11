@@ -10,6 +10,7 @@ import numpy as np
 import socket
 import configparser
 import os
+import datetime
 # Full feature list of a flow:
 FEATURES = [
     "proto", # app layer protocol
@@ -108,11 +109,13 @@ def parse_flows(pcapfile):
         apps[key] = app_proto.split(".")
         if len(apps[key]) == 1:
             apps[key].append(None)
-
     f.close()
+
     for ts, raw in dpkt.pcap.Reader(open(pcapfile, "rb")):
         eth = dpkt.ethernet.Ethernet(raw)
         ip = eth.data
+        #print(str(datetime.datetime.utcfromtimestamp(ts)),'\n')
+        #check if the packet is IP, TCP, UDP
         if not isinstance(ip, dpkt.ip.IP):
             continue
         seg = ip.data
@@ -122,6 +125,7 @@ def parse_flows(pcapfile):
             transp_proto = "udp"
         else:
             continue
+
         key = (transp_proto, frozenset(((ip.src, seg.sport),(ip.dst, seg.dport))))
         #print(key,'here')
         try:
@@ -133,6 +137,7 @@ def parse_flows(pcapfile):
 
     for key, flow in flows.items():
         yield apps[key][0], apps[key][1], flow
+        #print(key)
 
 def forge_flow_stats(flow, strip = 0):
     '''
@@ -149,8 +154,9 @@ def forge_flow_stats(flow, strip = 0):
     '''
     ip = flow[0].data
     seg = ip.data
+    '''
     if isinstance(seg, dpkt.tcp.TCP):
-        # Смотрим, чтобы в первых двух пакетах был флаг SYN:
+        
         try:
             seg2 = flow[1].data.data
         except IndexError:
@@ -161,6 +167,15 @@ def forge_flow_stats(flow, strip = 0):
         flow = flow[3:] # срезаем tcp handshake
     elif isinstance(seg, dpkt.udp.UDP):
         proto = "udp"
+'''
+    if isinstance(seg, dpkt.tcp.TCP):
+        proto = "tcp"
+		# check if there is SYN flag in first 2 packets:
+        if (seg.flags & dpkt.tcp.TH_SYN and flow[1].data.data.flags & dpkt.tcp.TH_SYN):
+            flow = flow[3:] # cut out the tcp handshake
+    elif isinstance(seg, dpkt.udp.UDP):
+        proto = "udp"
+
     else:
         raise ValueError("Unknown transport protocol: `{}`".format(
             seg.__class__.__name__))
