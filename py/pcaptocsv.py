@@ -170,8 +170,12 @@ def forge_flow_stats(flow, strip = 0):
 '''
     if isinstance(seg, dpkt.tcp.TCP):
         proto = "tcp"
+        try:
+        	seg2 = flow[1].data.data
+        except IndexError:
+        	return None
 		# check if there is SYN flag in first 2 packets:
-        if (seg.flags & dpkt.tcp.TH_SYN and flow[1].data.data.flags & dpkt.tcp.TH_SYN):
+        if (seg.flags & dpkt.tcp.TH_SYN and seg2.flags & dpkt.tcp.TH_SYN):
             flow = flow[3:] # cut out the tcp handshake
     elif isinstance(seg, dpkt.udp.UDP):
         proto = "udp"
