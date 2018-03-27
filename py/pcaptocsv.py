@@ -3,7 +3,11 @@
 
 #forked from vnetserg/traffic-v2 @ github.com
 
-import argparse, re, dpkt
+import argparse, re, dpkt, pcap
+from pypacker import ppcap
+from pypacker.layer12 import ethernet
+from pypacker.layer3 import ip
+from pypacker.layer4 import tcp,udp
 from subprocess import Popen, PIPE
 import pandas as ps
 import numpy as np
@@ -99,7 +103,6 @@ def parse_flows(pcapfile):
         f.writelines("%s %s %s %s %s %s\n" % captures)
         
         transp_proto, ip1, port1, ip2, port2, app_proto = captures
-        #print(app_proto)
         ip1 = ip_from_string(ip1)
         ip2 = ip_from_string(ip2)
         port1 = int(port1)
@@ -114,7 +117,6 @@ def parse_flows(pcapfile):
     for ts, raw in dpkt.pcap.Reader(open(pcapfile, "rb")):
         eth = dpkt.ethernet.Ethernet(raw)
         ip = eth.data
-        #print(str(datetime.datetime.utcfromtimestamp(ts)),'\n')
         #check if the packet is IP, TCP, UDP
         if not isinstance(ip, dpkt.ip.IP):
             continue
@@ -127,7 +129,6 @@ def parse_flows(pcapfile):
             continue
 
         key = (transp_proto, frozenset(((ip.src, seg.sport),(ip.dst, seg.dport))))
-        #print(key,'here')
         try:
             assert key in flows
         except AssertionError:
@@ -137,7 +138,65 @@ def parse_flows(pcapfile):
 
     for key, flow in flows.items():
         yield apps[key][0], apps[key][1], flow
-        #print(key)
+
+def parseFlows(pcapfile):
+    '''
+        parseFlows() reads the PCAP-file, splits into flows,
+        defines the application for each flow.
+        Args:
+            pcapfile - path to PCAP (string)
+        returns (генерирует):
+            The list of tuples as follows:
+            (
+                transport layer application,
+                complementary protocol,
+                the list of Ethernet-frames
+            )
+    '''
+
+    pipe = Popen(["./ndpiReader", "-i", pcapfile, "-v2"], stdout=PIPE)
+    raw = pipe.communicate()[0].decode("utf-8")
+    #raw=open('logAtata').read()
+    reg = re.compile(r'(UDP|TCP) (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{1,5}) <?->? (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{1,5}) \[proto: [\d+\.]*\d+\/(\w+\.?\w+)*\]')
+    flows = {}
+    apps = {}
+    f=open('captures.txt','w')
+    for captures in re.findall(reg, raw):
+        f.writelines("%s %s %s %s %s %s\n" % captures)
+        transp_proto, ip1, port1, ip2, port2, app_proto = captures
+        ip1 = ip_from_string(ip1)
+        ip2 = ip_from_string(ip2)
+        port1 = int(port1)
+        port2 = int(port2)
+        key = (transp_proto.lower(),frozenset(((ip1, port1), (ip2, port2))))
+        flows[key] = []
+        apps[key] = app_proto.split(".")
+        if len(apps[key]) == 1:
+            apps[key].append(None)
+    f.close()
+
+    for ts, raw in ppcap.Reader(filename=pcapfile):
+        eth = ethernet.Ethernet(raw)
+
+        #create the keys for IP UDP/TCP flows
+        if eth[ip.IP] is not None:
+            if eth[tcp.TCP] is not None:
+                key = ('tcp', frozenset(((eth.ip.src, eth.ip.tcp.sport),(eth.ip.dst, eth.ip.tcp.dport))))
+            elif eth[udp.UDP] is not None:
+                key = ('udp', frozenset(((eth.ip.src, eth.ip.udp.sport),(eth.ip.dst, eth.ip.udp.dport))))
+            else:
+                continue
+            try:
+                assert key in flows
+            except AssertionError:
+                print(eth.ip.src,eth.ip.src_s)
+                raise
+            flows[key].append(eth)
+        else:
+            continue
+
+    for key, flow in flows.items():
+        yield apps[key][0], apps[key][1], flow
 
 def forge_flow_stats(flow, strip = 0):
     '''
@@ -145,12 +204,12 @@ def forge_flow_stats(flow, strip = 0):
         Args:
             flow - the list of Ethernet-frames
             strip - a number of first frames to calculate features with
-			(if < 1, then frames are NOT discarded)
+            (if < 1, then frames are NOT discarded)
         returns:
             a dict, where keys are the names of features,
             items are the values.
             If there are no at least 2 buld of data in the flow,
-			it returns None.
+            it returns None.
     '''
     ip = flow[0].data
     seg = ip.data
@@ -171,10 +230,10 @@ def forge_flow_stats(flow, strip = 0):
     if isinstance(seg, dpkt.tcp.TCP):
         proto = "tcp"
         try:
-        	seg2 = flow[1].data.data
+            seg2 = flow[1].data.data
         except IndexError:
-        	return None
-		# check if there is SYN flag in first 2 packets:
+            return None
+        # check if there is SYN flag in first 2 packets:
         if (seg.flags & dpkt.tcp.TH_SYN and seg2.flags & dpkt.tcp.TH_SYN):
             flow = flow[3:] # cut out the tcp handshake
     elif isinstance(seg, dpkt.udp.UDP):
@@ -278,6 +337,132 @@ def forge_flow_stats(flow, strip = 0):
 
     return stats
 
+def getFlowStats(flow, strip = 0):
+    '''
+        forge_flow_stats() calculates stat. features of a flow.
+        Args:
+            flow - the list of Ethernet-frames
+            strip - a number of first frames to calculate features with
+            (if < 1, then frames are NOT discarded)
+        returns:
+            a dict, where keys are the names of features,
+            items are the values.
+            If there are no at least 2 buld of data in the flow,
+            it returns None.
+    '''
+    ip_layer = flow[0].upper_layer
+    transp_layer = ip_layer.upper_layer
+
+    if ip_layer[tcp.TCP] is not None:
+        proto = "tcp"
+        try:
+            transp_layer2 = flow[1].upper_layer.upper_layer
+        except IndexError:
+            return None
+        # check if there is SYN flag in first 2 packets:
+        if (transp_layer.flags & tcp.TH_SYN and transp_layer2.flags & tcp.TH_SYN):
+            flow = flow[3:] # cut out the tcp handshake
+    elif ip_layer[udp.UDP] is not None:
+        proto = "udp"
+
+    else:
+        raise ValueError("Unknown transport protocol: `{}`".format(
+            transp_layer.__class__.__name__))
+
+    if strip > 0:
+        flow = flow[:strip]
+
+    client = (ip_layer.src, transp_layer.sport)
+    server = (ip_layer.dst, transp_layer.dport)
+
+    client_bulks = []
+    server_bulks = []
+    client_packets = []
+    server_packets = []
+
+    cur_bulk_size = 0
+    cur_bulk_owner = "client"
+    client_fin = False
+    server_fin = False
+    for eth in flow:
+        ip_layer = eth.upper_layer
+        transp_layer = ip_layer.upper_layer
+        if (ip_layer.src, transp_layer.sport) == client:
+            if client_fin: continue
+            if proto == "tcp":
+                client_fin = bool(transp_layer.flags & tcp.TH_FIN)
+            client_packets.append(len(transp_layer))
+            if cur_bulk_owner == "client":
+                cur_bulk_size += len(transp_layer.body_bytes)
+            elif len(transp_layer.body_bytes) > 0:
+                server_bulks.append(cur_bulk_size)
+                cur_bulk_owner = "client"
+                cur_bulk_size = len(transp_layer.body_bytes)
+        elif (ip_layer.src, transp_layer.sport) == server:
+            if server_fin: continue
+            if proto == "tcp":
+                server_fin = bool(transp_layer.flags & tcp.TH_FIN)
+            server_packets.append(len(transp_layer))
+            if cur_bulk_owner == "server":
+                cur_bulk_size += len(transp_layer.body_bytes)
+            elif len(transp_layer.body_bytes) > 0:
+                client_bulks.append(cur_bulk_size)
+                cur_bulk_owner = "server"
+                cur_bulk_size = len(transp_layer.body_bytes)
+        else:
+            raise ValueError("There is more than one flow here!")
+
+    if cur_bulk_owner == "client":
+        client_bulks.append(cur_bulk_size)
+    else:
+        server_bulks.append(cur_bulk_size)
+
+    stats = {
+        "bulk0": client_bulks[0] if len(client_bulks) > 0 else 0,
+        "bulk1": server_bulks[0] if len(server_bulks) > 0 else 0,
+        "bulk2": client_bulks[1] if len(client_bulks) > 1 else 0,
+        "bulk3": server_bulks[1] if len(server_bulks) > 1 else 0,
+        "client_packet0": client_packets[0] if len(client_packets) > 0 else 0,
+        "client_packet1": client_packets[1] if len(client_packets) > 1 else 0,
+        "server_packet0": server_packets[0] if len(server_packets) > 0 else 0,
+        "server_packet1": server_packets[1] if len(server_packets) > 1 else 0,
+    }
+
+    if client_bulks and client_bulks[0] == 0:
+        client_bulks = client_bulks[1:]
+
+#    if not client_bulks or not server_bulks:
+#        return None
+
+    stats.update({
+        "client_bulksize_avg": np.mean(client_bulks),
+        "client_bulksize_dev": np.std(client_bulks),
+        "server_bulksize_avg": np.mean(server_bulks),
+        "server_bulksize_dev": np.std(server_bulks),
+        "client_packetsize_avg": np.mean(client_packets),
+        "client_packetsize_dev": np.std(client_packets),
+        "server_packetsize_avg": np.mean(server_packets),
+        "server_packetsize_dev": np.std(server_packets),
+#        "client_packets_per_bulk": len(client_packets)/len(client_bulks),
+#        "server_packets_per_bulk": len(server_packets)/len(server_bulks),
+#        "client_effeciency": sum(client_bulks)/sum(client_packets),
+#        "server_efficiency": sum(server_bulks)/sum(server_packets),
+#        "byte_ratio": sum(client_packets)/sum(server_packets),
+#        "payload_ratio": sum(client_bulks)/sum(server_bulks),
+#        "packet_ratio": len(client_packets)/len(server_packets),
+        "client_bytes": sum(client_packets),
+        "client_payload": sum(client_bulks),
+        "client_packets": len(client_packets),
+        "client_bulks": len(client_bulks),
+        "server_bytes": sum(server_packets),
+        "server_payload": sum(server_bulks),
+        "server_packets": len(server_packets),
+        "server_bulks": len(server_bulks),
+        "is_tcp": int(proto == "tcp")
+    })
+    return stats
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file", nargs="+", help="pcap file")
@@ -289,9 +474,7 @@ def main():
         if len(args.file) > 1:
             print(pcapfile)
         for proto, subproto, flow in parse_flows(pcapfile):
-            #print(proto)
             stats = forge_flow_stats(flow, args.strip)
-#            stats = forge_flow_stats(flow)
             if stats:
                 stats.update({"proto": proto, "subproto": subproto})
                 for feature in FEATURES:
