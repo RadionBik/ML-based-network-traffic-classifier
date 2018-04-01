@@ -5,6 +5,7 @@ Created on Tue Feb  6 18:05:22 2018
 @author: Radion Bikmukhamedov
 """
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.externals import joblib
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import os
@@ -14,7 +15,7 @@ def cleanUpCSVfile(filename,thresholdForFlowDeleting,config):
     cleanUpCSVfile() loads a .csv file from the "training_data" folder
     with features and labels and removes rare protocols and flows
     '''
-    trainingDataFolderName=config['GeneralSettings']['folderWithCSVfiles']
+    trainingDataFolderName=config['OfflineMode']['folderWithCSVfiles']
     data = pd.read_csv(os.pardir+os.sep+trainingDataFolderName+os.sep+filename)
     #print(data.proto.value_counts())
 
@@ -76,14 +77,14 @@ def getFeaturesAndLabelsFromCsv(config):
     getFeaturesAndLabelsFromCsv() reads, cleans up and returns features 
     with labels from .csv files
     '''
-    randomState=int(config['GeneralSettings']['randomSeed'])
-    useSeparateFileForTesting=config['GeneralSettings'].getboolean('useSeparateFileForTesting')
+    randomState=int(config['OfflineMode']['randomSeed'])
+    useSeparateFileForTesting=config['OfflineMode'].getboolean('useSeparateFileForTesting')
     #names of .csv files with features and labels
-    dumpTrain=config['GeneralSettings']['fileForTraining']
-    dumpTest=config['GeneralSettings']['fileForTesting']
+    dumpTrain=config['OfflineMode']['fileForTraining']
+    dumpTest=config['OfflineMode']['fileForTesting']
 
     #extact info from .csv files and clean them up
-    thresholdForFlowDeleting=int(config['GeneralSettings']['thresholdForFlowDeleting'])
+    thresholdForFlowDeleting=int(config['OfflineMode']['thresholdForFlowDeleting'])
     if useSeparateFileForTesting:
         dataTrain=cleanUpCSVfile(dumpTrain,thresholdForFlowDeleting,config)
         dataTest=cleanUpCSVfile(dumpTest,thresholdForFlowDeleting,config)
@@ -99,4 +100,9 @@ def getFeaturesAndLabelsFromCsv(config):
     #obtain normalized train and test features/labels
     featuresTrain,labelsTrain,le,scaler = getTrainFeaturesAndLabels(dataTrain)
     featuresTest,labelsTest = getTestFeaturesAndLabels(dataTest,le,scaler)
+
+    #save the scaler to a file
+    pathToClassifiers=config['GeneralSettings']['folderWithTrainedClassifiers']
+    joblib.dump(scaler, os.pardir+os.sep+pathToClassifiers+os.sep+'scaler.dat')
+    joblib.dump(le, os.pardir+os.sep+pathToClassifiers+os.sep+'le.dat')
     return featuresTrain,featuresTest,labelsTrain,labelsTest,le

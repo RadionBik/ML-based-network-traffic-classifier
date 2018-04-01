@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Oct 22 15:39:55 2017
 
 @author: Radion Bikmukhamedov
 """
-__version__ = '0.2'
+__version__ = '0.3'
 
 from sklearn.externals import joblib
 import pandas as pd
@@ -22,7 +21,7 @@ import matplotlib.pyplot as plt
 from time import time
 import os
 import configparser
-import post_process_csv
+import post_process_csv, live_mode, feature_extractor
 
 def evaluationResults(ground_truth,predictions):
     '''
@@ -70,8 +69,8 @@ def paramSearch(classifier,classifierName,X,y,config):
 
     '''
     if __name__ == "__main__":
-        numberOfSplitsCV=int(config['GeneralSettings']['numberOfSplitsCV'])
-        randomState=int(config['GeneralSettings']['randomSeed'])
+        numberOfSplitsCV=int(config['OfflineMode']['numberOfSplitsCV'])
+        randomState=int(config['OfflineMode']['randomSeed'])
 
         param_dist = {
             'Linear':{"tol": [0.001,0.01],
@@ -127,8 +126,8 @@ def plotPrecision(results,config,appendix):
     plt.ylabel('Precision')
     plt.tight_layout()
     plt.ylim(0.5,1)
-    pathToSave=config['GeneralSettings']['folderWithPlots']
-    if config['GeneralSettings'].getboolean('savePlotsToFile'):
+    pathToSave=config['OfflineMode']['folderWithPlots']
+    if config['OfflineMode'].getboolean('savePlotsToFile'):
         plt.savefig(os.pardir+os.sep+pathToSave+os.sep+'precision'+appendix+'.pdf')
     #plt.bar(zip(*sameNetTuple))
 
@@ -138,7 +137,7 @@ def plotConfusionMatrix(ground_truth,predictions,classes,classifName,config,appe
     Normalization can be applied by setting `normalizeConfusionMatrix=True`.
     """
     cm=confusion_matrix(ground_truth,predictions)
-    normalize=config['GeneralSettings'].getboolean('normalizeConfusionMatrix')
+    normalize=config['OfflineMode'].getboolean('normalizeConfusionMatrix')
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix:")
@@ -166,28 +165,24 @@ def plotConfusionMatrix(ground_truth,predictions,classes,classifName,config,appe
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     #save to a pdf file
-    pathToSave=config['GeneralSettings']['folderWithPlots']
+    pathToSave=config['OfflineMode']['folderWithPlots']
     plt.tight_layout()
-    if config['GeneralSettings'].getboolean('savePlotsToFile'):
+    if config['OfflineMode'].getboolean('savePlotsToFile'):
         plt.savefig(os.pardir+os.sep+pathToSave+os.sep+'CM_of_'+classifName+appendix+'.pdf')
     #plt.close()
 
-def main():
-    #########################################################################
-    #read the config parameters from the file
-    config = configparser.ConfigParser()
-    config.read(os.pardir+os.sep+'config.ini')
+def offlineClassification(config):
 
-    randomState=int(config['GeneralSettings']['randomSeed'])
+    randomState=int(config['OfflineMode']['randomSeed'])
 
-    useSeparateFileForTesting=config['GeneralSettings'].getboolean('useSeparateFileForTesting')
+    useSeparateFileForTesting=config['OfflineMode'].getboolean('useSeparateFileForTesting')
     if useSeparateFileForTesting:
         appendix='_diffNet'
     else:
         appendix='_sameNet'
 
     pathToClassifiers=config['GeneralSettings']['folderWithTrainedClassifiers']
-    useTrainedClasiffiers=config['GeneralSettings'].getboolean('useTrainedClasiffiers')
+    useTrainedClasiffiers=config['OfflineMode'].getboolean('useTrainedClasiffiers')
 
     classifiersToTestList={
             'Linear':config['MLtoTest'].getboolean('Linear'),
@@ -245,10 +240,10 @@ def main():
             print('Fitting time for {} is {:.3f} s'.format(str(classifier).split('(')[0],time()-startTime))
             #save the classifier to a file
             joblib.dump(classifier, os.pardir+os.sep+pathToClassifiers+os.sep+
-                         classifierName+appendix+'.cla')
+                         classifierName+'.cla')
         else:
             classifier=joblib.load(os.pardir+os.sep+pathToClassifiers+os.sep+
-                                   classifierName+appendix+'.cla')
+                                   classifierName+'.cla')
         #####################################################################
         #test classifier
         labelsTestPredicted = classifier.predict(featuresTest)
@@ -263,12 +258,64 @@ def main():
             'size'   : 12}
         plt.rc('font', **font)
         #optionally draw CM
-        if config['GeneralSettings'].getboolean('plotConfusionMatrix'):
+        if config['OfflineMode'].getboolean('plotConfusionMatrix'):
             plotConfusionMatrix(labelsTest,labelsTestPredicted,le.classes_,
                                 classifierName,config,appendix)
     #optionally plot accuracy scores
-    if config['GeneralSettings'].getboolean('plotAccuracyScores'):
+    if config['OfflineMode'].getboolean('plotAccuracyScores'):
         plotPrecision(testResults,config,appendix)
+
+def onlineClassification(config):
+
+    #packetLimit = 5
+    if config['OnlineMode'].getboolean('selectDevice'):
+        targetDevice = live_mode.selectDevice()
+    else:
+        targetDevice = config['OnlineMode']['selectedDevice']
+    #empty dict for flows, outside of captureFlows() to preserve the values
+    flows = {}
+    #define the desired classifier
+    onlineClassifier = config['OnlineMode']['onlineClassifier']
+    numberOfPacketsToWait = int(config['OnlineMode']['numberOfPacketsToWait'])
+
+    print('{} has been selected, listening on {}'.format(onlineClassifier,targetDevice))
+
+    pathToClassifiers = config['GeneralSettings']['folderWithTrainedClassifiers']
+    try: classifier = joblib.load(os.pardir+os.sep+pathToClassifiers+os.sep+
+                                   onlineClassifier+'.cla')
+    except: print('Cannot read the file with the classifier')
+    try: scaler = joblib.load(os.pardir+os.sep+pathToClassifiers+os.sep+'scaler.dat')
+    except: print('Cannot read the file with the scaler')
+    try: le = joblib.load(os.pardir+os.sep+pathToClassifiers+os.sep+'le.dat')
+    except: print('Cannot read the file with the Label Encoder')
+
+    #iterate infinitely to capture the flows 
+    while True:
+        key,flow = next(live_mode.liveFlowCaptureDpkt(targetDevice,flows,numberOfPacketsToWait))
+        stats = feature_extractor.getFlowStatsDpkt(flow)
+
+        #convert to DataFrame with features as the header
+        #flowFeatures = pd.DataFrame.from_dict(stats,orient="index").T
+        flowFeatures = live_mode.statsToDataFrame(stats)
+        for i in range(5):
+            flowFeatures.to_csv(os.pardir+os.sep+config['OfflineMode']['folderWithCSVfiles']+os.sep+'flow'+str(i)+'.csv', index=False)
+        #scale the features
+        features=scaler.transform(flowFeatures)
+        predictedLabel = classifier.predict(features)
+
+        print(key,' -- ',le.classes_[predictedLabel[0]])
+
+def main():
+    #########################################################################
+    #read the config parameters from the file
+    config = configparser.ConfigParser()
+    config.read(os.pardir+os.sep+'config.ini')
+    if config['GeneralSettings'].getboolean('modeIsOnline'):
+        onlineClassification(config)
+    else:
+        offlineClassification(config)
+
+
 
 if __name__ == "__main__":
     main()

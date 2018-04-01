@@ -1,0 +1,2 @@
+bulk0,bulk1,bulk2,bulk3,client_bulks,client_bulksize_avg,client_bulksize_dev,client_bytes,client_packet0,client_packet1,client_packets,client_packetsize_avg,client_packetsize_dev,client_payload,is_tcp,server_bulks,server_bulksize_avg,server_bulksize_dev,server_bytes,server_packet0,server_packet1,server_packets,server_packetsize_avg,server_packetsize_dev,server_payload
+0,0,0,0,1,0.0,0.0,0,0,0,1,0.0,0.0,0,1,1,0.0,0.0,0,0,0,1,0.0,0.0,0
