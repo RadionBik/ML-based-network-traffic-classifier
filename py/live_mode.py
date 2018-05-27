@@ -1,3 +1,6 @@
+#!/usr/bin/python3.6
+# -*- coding: utf-8 -*-
+
 '''
 https://github.com/pynetwork/pypcap
 http://pypcap.readthedocs.io/en/latest/
@@ -6,9 +9,9 @@ performance is ok, packets appear faster than in tshark, no dropped
 '''
 import pcap, dpkt
 import socket
-from pypacker.layer12 import ethernet
-from pypacker.layer3 import ip
-from pypacker.layer4 import tcp,udp
+#from pypacker.layer12 import ethernet
+#from pypacker.layer3 import ip
+#from pypacker.layer4 import tcp,udp
 import pandas as pd
 import feature_extractor
 

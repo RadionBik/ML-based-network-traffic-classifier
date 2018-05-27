@@ -5,9 +5,9 @@ DPKT is considered to be more stable.
 '''
 
 import dpkt
-from pypacker.layer12 import ethernet
-from pypacker.layer3 import ip
-from pypacker.layer4 import tcp,udp
+#from pypacker.layer12 import ethernet
+#from pypacker.layer3 import ip
+#from pypacker.layer4 import tcp,udp
 import numpy as np
 
 

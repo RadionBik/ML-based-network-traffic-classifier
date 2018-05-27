@@ -4,10 +4,10 @@
 #forked from vnetserg/traffic-v2 @ github.com
 
 import argparse, re, dpkt, pcap
-from pypacker import ppcap
-from pypacker.layer12 import ethernet
-from pypacker.layer3 import ip
-from pypacker.layer4 import tcp,udp
+#from pypacker import ppcap
+#from pypacker.layer12 import ethernet
+#from pypacker.layer3 import ip
+#from pypacker.layer4 import tcp,udp
 from subprocess import Popen, PIPE
 import pandas as ps
 import numpy as np
