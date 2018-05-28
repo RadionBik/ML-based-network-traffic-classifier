@@ -268,7 +268,7 @@ def offlineClassification(config):
 def onlineClassification(config):
 
     #packetLimit = 5
-    if config['OnlineMode'].getboolean('selectDevice'):
+    if config['OnlineMode'].getboolean('toSelectDevice'):
         targetDevice = live_mode.selectDevice()
     else:
         targetDevice = config['OnlineMode']['selectedDevice']
