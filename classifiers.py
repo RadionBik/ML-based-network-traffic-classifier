@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 import argparse
+import configparser
+
 from sklearn.externals import joblib
-import pandas as pd
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -17,7 +18,7 @@ import os
 from time import time
 
 from config_loader import Config_Init
-from feature_processing import CSV_reader, Feature_Transformer
+from feature_processing import read_csv, Feature_Transformer
 from report import Classifier_Evaluator
 
 class Traffic_Classifiers(Config_Init):
@@ -69,7 +70,7 @@ class Traffic_Classifiers(Config_Init):
         search = GridSearchCV(self.classifiers[classifier_name],
                               param_grid=self.parameter_search_space[classifier_name],
                               n_jobs=-1,
-                              scoring=make_scorer(metrics.jaccard_similarity_score),
+                              scoring=make_scorer(metrics.jaccard_score),
                               cv=3)
         
         start = time()
@@ -113,9 +114,9 @@ class Traffic_Classifiers(Config_Init):
                 predictions.update({classif_name : preds})
                 
         return predictions
-        
-def main():
 
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config", 
@@ -127,9 +128,10 @@ def main():
     conf = Config_Init(args.config).get()
 
     print('Loading csv file..')
-    csv_features, csv_targets = CSV_reader(config_file=args.config).process()
-
-    extract = Feature_Transformer(config_file=args.config)
+    config = configparser.ConfigParser()
+    config.read(args.config)
+    csv_features, csv_targets = read_csv(config)
+    extract = Feature_Transformer(config=config)
     classif = Traffic_Classifiers(config_file=args.config) 
 
     if conf['general'].getboolean('useTrainedFeatureProcessors'):
