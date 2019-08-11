@@ -1,16 +1,14 @@
-from sklearn.metrics import confusion_matrix, make_scorer
+from sklearn.metrics import confusion_matrix
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
 
-from config_loader import Config_Init
 
-
-class Classifier_Evaluator(Config_Init):
-    def __init__(self, truth, predictions, file_suffix=None, config_file='config.ini'):
-        Config_Init.__init__(self, config_file)
+class ClassifierEvaluator:
+    def __init__(self, config, truth, predictions, file_suffix=''):
+        self._config = config
         self.truth = truth
         self.preds = predictions
         self.classifiers = list(predictions.keys())
@@ -23,9 +21,10 @@ class Classifier_Evaluator(Config_Init):
         
     def calc_scores(self):
         for classif in self.classifiers:
-            calc_metrics = {'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
-                       'F-score macro': metrics.f1_score(self.truth,self.preds[classif],average='macro'),
-                       'F-score weighted': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
+            calc_metrics = {
+                'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
+                'F-score macro': metrics.f1_score(self.truth,self.preds[classif],average='macro'),
+                'F-score weighted': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
             self.metrics.update({classif: calc_metrics})
         return self.metrics
 
@@ -49,14 +48,13 @@ class Classifier_Evaluator(Config_Init):
             
     def plot_cm(self, classes):
 
-        #plt.figure()
         self.calc_cm(classes)
         nrows = int(np.ceil(len(self.classifiers)/2))
-        ncols = 2 if len(self.classifiers)>1 else 1 
+        ncols = 2 if len(self.classifiers)>1 else 1
         fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=[nrows*7,ncols*7])
         for index, classif in enumerate(self.classifiers):
             cm = self.conf_matrix[classif]
-            
+
             if nrows==1 and ncols==1:
                 axes = [axes]
             else:
