@@ -10,7 +10,7 @@ from subprocess import Popen, PIPE
 import dpkt
 import pandas as pd
 
-from feature_processing import Feature_Extractor
+from feature_processing import FeatureExtractor
 
 
 def ip_to_string(inet) -> str:
@@ -35,7 +35,7 @@ def ip4_from_string(ip: str) -> bytes:
     return bytes(map(int, ip.split('.')))
 
 
-class PCAPParser(Feature_Extractor):
+class PCAPParser(FeatureExtractor):
 
     def __init__(self, config, traffic_filename=None):
         super().__init__()
