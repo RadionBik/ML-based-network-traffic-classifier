@@ -9,31 +9,35 @@ from config_loader import Config_Init
 
 
 class Classifier_Evaluator(Config_Init):
-    def __init__(self, truth, predictions, suffix='', config_file='config.ini'):
+    def __init__(self, truth, predictions, file_suffix=None, config_file='config.ini'):
         Config_Init.__init__(self, config_file)
         self.truth = truth
         self.preds = predictions
         self.classifiers = list(predictions.keys())
         self.metrics = {}
         self.conf_matrix = {}
-        self._suffix = suffix
+        if file_suffix:
+            self._suffix = file_suffix
+        else:
+            self._suffix = self._config['general']['fileSaverSuffix']
         
     def calc_scores(self):
         for classif in self.classifiers:
             calc_metrics = {'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
-                       'F-score': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
+                       'F-score macro': metrics.f1_score(self.truth,self.preds[classif],average='macro'),
+                       'F-score weighted': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
             self.metrics.update({classif: calc_metrics})
         return self.metrics
 
     def plot_scores(self):
         scores_df = pd.DataFrame(self.calc_scores())
-        #plt.figure(figsize=[10,6])
-        ax = scores_df.plot(kind='bar', rot=45, ylim=(0.95,1), grid=True)
+        print(scores_df)
+        ax = scores_df.plot(kind='bar', rot=30, ylim=(0.8,1.0), grid=True).legend(bbox_to_anchor=(1.05, 1.0))
         fig = ax.get_figure()
         plt.tight_layout()
         fig.savefig(self._config['report']['folderWithPlots']+os.sep\
                     +'scores'+self._suffix+'.pdf')
-        plt.show()
+        #plt.show()
     
     def calc_cm(self, classes):
         for classif in self.classifiers:
@@ -45,28 +49,43 @@ class Classifier_Evaluator(Config_Init):
             
     def plot_cm(self, classes):
 
+        #plt.figure()
         self.calc_cm(classes)
-        for classif in self.classifiers:
+        nrows = int(np.ceil(len(self.classifiers)/2))
+        ncols = 2 if len(self.classifiers)>1 else 1 
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=[nrows*7,ncols*7])
+        for index, classif in enumerate(self.classifiers):
             cm = self.conf_matrix[classif]
-            plt.figure(figsize=[8, 8])
-            plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-            plt.title('CM of {} classifier'.format(classif))
-            plt.colorbar()
+            
+            if nrows==1 and ncols==1:
+                axes = [axes]
+            else:
+                axes = axes.flatten()
+            #except AttributeError:
+            #    pass
+            #axes[index].figure(figsize=[8, 8])
+            im = axes[index].imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+            axes[index].set_title('CM of {} classifier'.format(classif))
+            if index%2==1:
+                fig.colorbar(im, aspect=30, shrink=0.8, ax=axes[index])
             tick_marks = np.arange(len(classes))
-            plt.xticks(tick_marks, classes, rotation=45)
-            plt.yticks(tick_marks, classes)
+            axes[index].set_xticks(tick_marks)
+            axes[index].set_xticklabels(list(classes))
+            plt.setp(axes[index].get_xticklabels(), rotation=45)
+            axes[index].set_yticks(tick_marks)
+            axes[index].set_yticklabels(list(classes))
 
             fmt = '.2f' if self._config['report'].getboolean('normalizeConfusionMatrix') else 'd'
             thresh = cm.max() / 2.
             for i in range(cm.shape[0]):
                 for j in range(cm.shape[1]):
-                    plt.text(j, i, format(cm[i, j], fmt),
+                    axes[index].text(j, i, format(cm[i, j], fmt),
                              horizontalalignment="center",
                              color="white" if cm[i, j] > thresh else "black")
 
-            #plt.tight_layout()
-            plt.ylabel('True label')
-            plt.xlabel('Predicted label')
-            plt.savefig(self._config['report']['folderWithPlots']+os.sep\
-                        +'CM_of_'+classif+self._suffix+'.pdf')
-            plt.show()
+            axes[index].set_ylabel('True label')
+            axes[index].set_xlabel('Predicted label')
+            fig.tight_layout()
+        fig.savefig(self._config['report']['folderWithPlots']+os.sep\
+                        +'Confusion_matrices'+self._suffix+'.png',dpi=400)
+        #fig.show()

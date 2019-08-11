@@ -5,15 +5,15 @@ from sklearn.externals import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
+from sklearn.feature_extraction.text import HashingVectorizer
 import os
 import pandas as pd
 
 class Feature_Extractor:
 
-    def __init__(self,  consider_iat=True):
-        self._consider_iat =  consider_iat
-
-    def extract_features(self, raw_df, consider_iat=True):
+    #def __init__(self):
+      
+    def extract_features(self, raw_df):
 
         # print(raw_df.head())
         stats = {}
@@ -42,7 +42,7 @@ class Feature_Extractor:
 
             'client_found_tcp_flags': sorted(list(set(raw_df[raw_df['is_client'] == 1]['tcp_flags']))),
             'server_found_tcp_flags': sorted(list(set(raw_df[raw_df['is_client'] == 0]['tcp_flags']))),
-
+     
             'client_tcp_window_mean': raw_df[raw_df['is_client'] == 1]['tcp_win'].mean(),
             'server_tcp_window_mean': raw_df[raw_df['is_client'] == 0]['tcp_win'].mean(),
 
@@ -93,34 +93,36 @@ class Feature_Extractor:
             'client_packets_number': len(client_packets),
         })
 
-        if consider_iat:
+        iat_client = pd.to_timedelta(pd.Series(
+            raw_df[raw_df['is_client'] == 1].index).diff().fillna('0')) / pd.offsets.Second(1)
+        iat_client.index = raw_df[raw_df['is_client'] == 1].index
 
-            iat_client = pd.to_timedelta(pd.Series(
-                raw_df[raw_df['is_client'] == 1].index).diff().fillna('0')) / pd.offsets.Second(1)
-            iat_client.index = raw_df[raw_df['is_client'] == 1].index
+        iat_server = pd.to_timedelta(pd.Series(
+            raw_df[raw_df['is_client'] == 0].index).diff().fillna('0')) / pd.offsets.Second(1)
+        iat_server.index = raw_df[raw_df['is_client'] == 0].index
 
-            iat_server = pd.to_timedelta(pd.Series(
-                raw_df[raw_df['is_client'] == 0].index).diff().fillna('0')) / pd.offsets.Second(1)
-            iat_server.index = raw_df[raw_df['is_client'] == 0].index
+        raw_df['IAT'] = pd.concat([iat_server, iat_client])
 
-            raw_df['IAT'] = pd.concat([iat_server, iat_client])
+        client_iats = raw_df[raw_df['is_client'] == 1
+                             ]['IAT']
+        server_iats = raw_df[raw_df['is_client'] == 0
+                             ]['IAT']
 
-            client_iats = raw_df[raw_df['is_client'] == 1
-                                 ]['IAT']
-            server_iats = raw_df[raw_df['is_client'] == 0
-                                 ]['IAT']
+        stats.update({
+            #'client_iat_max': client_iats.max(),
+            #'client_iat_min': client_iats.min(),
+            'client_iat_mean': client_iats.mean(),
+            'client_iat_median': client_iats.quantile(.5),
+            'client_iat_25q': client_iats.quantile(.25),
+            'client_iat_75q': client_iats.quantile(.75),
 
-            stats.update({
-                'client_iat_mean': client_iats.mean(),
-                'client_iat_median': client_iats.quantile(.5),
-                'client_iat_25q': client_iats.quantile(.25),
-                'client_iat_75q': client_iats.quantile(.75),
-
-                'server_iat_mean': server_iats.mean(),
-                'server_iat_median': server_iats.quantile(.5),
-                'server_iat_25q': server_iats.quantile(.25),
-                'server_iat_75q': server_iats.quantile(.75),
-            })
+            #'server_iat_max': server_iats.max(),
+            #'server_iat_min': server_iats.min(),
+            'server_iat_mean': server_iats.mean(),
+            'server_iat_median': server_iats.quantile(.5),
+            'server_iat_25q': server_iats.quantile(.25),
+            'server_iat_75q': server_iats.quantile(.75),
+        })
 
         # return pd.Series(stats, index=stats.keys()).fillna(0)
         return stats
@@ -141,19 +143,34 @@ class Feature_Transformer(Config_Init):
     def __init__(self, 
                  config_file='config.ini', 
                  categ_features=['client_found_tcp_flags',
-                                 'server_found_tcp_flags']):
+                                 'server_found_tcp_flags'],
+                 file_suffix=None,
+                 feature_flags=None):
 
         Config_Init.__init__(self, config_file)
         self.le = LabelEncoder()
         self.scaler = MinMaxScaler()
         self.one_hot = OneHotEncoder()
     
+        if file_suffix:
+            self._suffix = file_suffix
+        else:
+            self._suffix = self._config['general']['fileSaverSuffix']
+
+        self.random_seed = int(self._config['offline']['randomSeed'])
+
         self._folder_pref = self._config['general']['classifiers_folder']+os.sep
-        self._one_hot_file = self._folder_pref+'one_hot.dat'
-        self._scaler_file = self._folder_pref+'scaler.dat'
-        self._le_file = self._folder_pref+'le.dat'
+        self._one_hot_file = self._folder_pref+'one_hot'+self._suffix+'.dat'
+        self._scaler_file = self._folder_pref+'scaler'+self._suffix+'.dat'
+        self._le_file = self._folder_pref+'le'+self._suffix+'.dat'
         self.categ_features = categ_features
         self._split = float(self._config['offline']['splitRatio'])
+        if feature_flags:
+            self.consider_iat = feature_flags[0]
+            self.consider_tcp_flags = feature_flags[1]
+        else:    
+            self.consider_iat = self._config['parser'].getboolean('considerIAT')
+            self.consider_tcp_flags = self._config['parser'].getboolean('considerTCPflags')
 
     def _fit_transform_scale_and_labels(self, X, y):
         X_scaled = self.scaler.fit_transform(X)
@@ -189,23 +206,34 @@ class Feature_Transformer(Config_Init):
     def fit_transform(self, features, targets):      
 
         one_hot_features, features = self._fit_transform_one_hot(features)
-        
+
+        if not self.consider_iat:
+            features = features.drop(list(features.filter(regex = 'iat')), axis = 1)
+
+        print(features.columns)
         F_tr,F_test, X_oh_tr,X_oh_test, t_tr,t_test = train_test_split(features, 
                                                                        one_hot_features,
                                                                        targets, 
                                                                        shuffle=True,
                                                                        test_size=self._split,
-                                                                       stratify=targets)
+                                                                       stratify=targets,
+                                                                       random_state=self.random_seed)
         
         X_tr, y_tr = self._fit_transform_scale_and_labels(F_tr, t_tr)
         X_test, y_test = self._transform_scale_and_labels(F_test, t_test)
 
-        return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test 
+        if self.consider_tcp_flags:
+            return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test 
+        else:
+            return X_tr, y_tr, X_test, y_test 
 
     def load_transform(self, features, targets):         
 
         one_hot_features, features = self._load_transform_one_hot(features)
-        
+
+        if not self.consider_iat:
+            features = features.drop(list(features.filter(regex = 'iat')), axis = 1)
+
         F_tr,F_test, X_oh_tr,X_oh_test, t_tr,t_test = train_test_split(features, 
                                                                        one_hot_features,
                                                                        targets, 
@@ -216,8 +244,12 @@ class Feature_Transformer(Config_Init):
         X_tr, y_tr = self._load_transform_scale_and_labels(F_tr, t_tr)
         X_test, y_test = self._transform_scale_and_labels(F_test, t_test)
 
-        return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test 
+        if self.consider_tcp_flags:
+            return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test 
+        else:
+            return X_tr, y_tr, X_test, y_test 
 
+            
 class CSV_reader(Config_Init):
     def __init__(self, csv_file=None, config_file='config.ini'):
         '''
@@ -241,10 +273,13 @@ class CSV_reader(Config_Init):
         #convert SSL_No_cert to SSL
         self.flow_features.replace('SSL_No_Cert','SSL',inplace=True)
         self.flow_features.replace('Unencrypted_Jabber','Jabber',inplace=True)
+        self.flow_features.replace('Viber','DNS',inplace=True)
 
         self.flow_features.drop('subproto',axis=1,inplace=True)
 
         self.flow_features.fillna(0,inplace=True)
+
+
 
         #delete rarely occuring flows, identifying them first
         found_apps = self.flow_features.proto.value_counts()

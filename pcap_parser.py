@@ -3,6 +3,7 @@
 import argparse
 import re
 import dpkt
+from dpkt.compat import compat_ord
 from subprocess import Popen, PIPE
 import pandas as pd
 import socket
@@ -22,8 +23,12 @@ class PCAP_Parser(Feature_Extractor, Config_Init):
         self._apps = {}
         self._flows = {}
         self.flow_features = pd.DataFrame()
-        self.csv_filename = ''
-
+        self.csv_filename = '{}{}flows_{}split_{}.csv'.format(
+                            self._config['offline']['csv_folder'],
+                            os.sep,
+                            self.strip,
+                            self.traffic_filename.split(os.sep)[-1].split('.')[0])
+        
     def __repr__(self):
         if self.flow_features.shape[0] == 0:
             return '{}, strip={}, 0 flows with features so far.'.format(self.traffic_filename,
@@ -57,6 +62,16 @@ class PCAP_Parser(Feature_Extractor, Config_Init):
                 a 4-byte string
         '''
         return b''.join([bytes([int(n)]) for n in ips.split('.')])
+
+    def mac_addr(self, address):
+        """Convert a MAC address to a readable/printable string
+
+           Args:
+               address (str): a MAC address in hex form (e.g. '\x01\x02\x03\x04\x05\x06')
+           Returns:
+               str: Printable/readable MAC address
+        """
+        return ':'.join('%02x' % compat_ord(b) for b in address)
 
     def get_flow_labels(self):
         pipe = Popen(['./'+self._config['parser']['nDPIfilename'], 
@@ -120,10 +135,14 @@ class PCAP_Parser(Feature_Extractor, Config_Init):
                                                           'proto',
                                                           'subproto',
                                                           'is_tcp',
+                                                          'mac_src',
+                                                          'mac_dst',
                                                           ]}
 
             if self.strip!=0 and (len(flows[key]['TS'])) > self.strip:
                 continue
+            flows[key]['mac_dst'].append(self.mac_addr(eth.dst))
+            flows[key]['mac_src'].append(self.mac_addr(eth.src))
 
             flows[key]['TS'].append(ts)
             flows[key]['ip_payload'].append(len(ip.data))
@@ -185,12 +204,6 @@ class PCAP_Parser(Feature_Extractor, Config_Init):
 
         self.flow_features = pd.DataFrame(self._flows).T
         if save_to_file:
-            self.csv_filename = '{}{}flows_{}split_{}.csv'.format(
-                self._config['offline']['csv_folder'],
-                os.sep,
-                self.strip,
-                self.traffic_filename.split(os.sep)[-1].split('.')[0])
-
             print('Saving features to {}...'.format(self.csv_filename))
             self.flow_features.to_csv(self.csv_filename, index=True, sep='|')
 
