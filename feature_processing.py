@@ -123,7 +123,7 @@ class Feature_Extractor:
         return stats
 
 
-class Feature_Transformer:
+class FeatureTransformer:
     """
     fit_transform() processes raw targets and features pandas objects,
     learning new labels and scalers and one-hot encoding selected
@@ -136,9 +136,8 @@ class Feature_Transformer:
     """
 
     def __init__(self,
-                 config: dict,
-                 categ_features=('client_found_tcp_flags',
-                                 'server_found_tcp_flags')):
+                 config,
+                 categ_features=None):
         self._config = config
         self.le = LabelEncoder()
         self.scaler = MinMaxScaler()
@@ -148,7 +147,8 @@ class Feature_Transformer:
         self._one_hot_file = self._folder_pref + 'one_hot.dat'
         self._scaler_file = self._folder_pref + 'scaler.dat'
         self._le_file = self._folder_pref + 'le.dat'
-        self.categ_features = categ_features
+        self.categ_features = categ_features or ['client_found_tcp_flags',
+                                 'server_found_tcp_flags']
         self._split = float(self._config['offline']['splitRatio'])
 
     def _fit_transform_scale_and_labels(self, X, y):
@@ -171,13 +171,15 @@ class Feature_Transformer:
         return self.scaler.transform(X), self.le.transform(y)
 
     def _fit_transform_one_hot(self, features):
-        one_hot = self.one_hot.fit_transform(features[self.categ_features]).toarray()
+        selected = features[self.categ_features]
+        one_hot = self.one_hot.fit_transform(selected).toarray()
         joblib.dump(self.one_hot, self._one_hot_file)
         return one_hot, features.drop(self.categ_features, axis=1)
 
     def _load_transform_one_hot(self, features):
         self.one_hot = joblib.load(self._one_hot_file)
-        one_hot = self.one_hot.transform(features[self.categ_features]).toarray()
+        selected = features[self.categ_features]
+        one_hot = self.one_hot.transform(selected).toarray()
         return one_hot, features.drop(self.categ_features, axis=1)
 
     def fit_transform(self, features, targets):
@@ -243,4 +245,7 @@ def read_csv(config, csv_file=None):
     
     flow_features = flow_features[flow_features['proto'].map(lambda x: x not in apps_to_del)]
     
-    return flow_features.drop('proto', axis=1), flow_features['proto']
+    result_features = flow_features.drop('proto', axis=1), flow_features['proto']
+
+
+    return result_features
