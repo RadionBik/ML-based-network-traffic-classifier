@@ -1,16 +1,14 @@
-from sklearn.metrics import confusion_matrix, make_scorer
+from sklearn.metrics import confusion_matrix
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
 
-from config_loader import Config_Init
 
-
-class Classifier_Evaluator(Config_Init):
-    def __init__(self, truth, predictions, suffix='', config_file='config.ini'):
-        Config_Init.__init__(self, config_file)
+class ClassifierEvaluator:
+    def __init__(self, config, truth, predictions, suffix=''):
+        self._config = config
         self.truth = truth
         self.preds = predictions
         self.classifiers = list(predictions.keys())
@@ -20,8 +18,10 @@ class Classifier_Evaluator(Config_Init):
         
     def calc_scores(self):
         for classif in self.classifiers:
-            calc_metrics = {'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
-                       'F-score': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
+            calc_metrics = {
+                'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
+                'F-score': metrics.f1_score(self.truth,self.preds[classif],average='weighted')
+            }
             self.metrics.update({classif: calc_metrics})
         return self.metrics
 
