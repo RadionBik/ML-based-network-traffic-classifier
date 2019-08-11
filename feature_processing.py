@@ -7,7 +7,7 @@ import os
 import pandas as pd
 
 
-class Feature_Extractor:
+class FeatureExtractor:
     def __init__(self, consider_iat=True):
         self._consider_iat = consider_iat
 
@@ -137,12 +137,7 @@ class FeatureTransformer:
     returns X_train, y_train, X_test, y_test
     """
 
-    def __init__(self,
-                 config,
-                 categ_features=['client_found_tcp_flags',
-                                 'server_found_tcp_flags'],
-                 file_suffix=None,
-                 feature_flags=None):
+    def __init__(self, config, categ_features=None, file_suffix=None, feature_flags=None):
 
         self._config = config
         self.le = LabelEncoder()
@@ -160,7 +155,10 @@ class FeatureTransformer:
         self._one_hot_file = self._folder_pref+'one_hot'+self._suffix+'.dat'
         self._scaler_file = self._folder_pref+'scaler'+self._suffix+'.dat'
         self._le_file = self._folder_pref+'le'+self._suffix+'.dat'
-        self.categ_features = categ_features
+        if not categ_features:
+            self.categ_features = ['client_found_tcp_flags', 'server_found_tcp_flags']
+        else:
+            self.categ_features = categ_features
         self._split = float(self._config['offline']['splitRatio'])
         if feature_flags:
             self.consider_iat = feature_flags[0]
