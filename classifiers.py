@@ -22,7 +22,9 @@ from feature_processing import read_csv, FeatureTransformer
 from report import ClassifierEvaluator
 
 import sys
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout,
+                    level=logging.INFO,
+                    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
 
