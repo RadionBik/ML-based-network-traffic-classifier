@@ -22,9 +22,9 @@ class ClassifierEvaluator:
     def calc_scores(self):
         for classif in self.classifiers:
             calc_metrics = {
-                'Accuracy': metrics.jaccard_similarity_score(self.truth, self.preds[classif]),
-                'F-score macro': metrics.f1_score(self.truth,self.preds[classif],average='macro'),
-                'F-score weighted': metrics.f1_score(self.truth,self.preds[classif],average='weighted')}
+                'Accuracy': metrics.jaccard_score(self.truth, self.preds[classif], average='macro'),
+                'F-score macro': metrics.f1_score(self.truth, self.preds[classif], average='macro'),
+                'F-score weighted': metrics.f1_score(self.truth, self.preds[classif], average='weighted')}
             self.metrics.update({classif: calc_metrics})
         return self.metrics
 
@@ -50,8 +50,8 @@ class ClassifierEvaluator:
 
         self.calc_cm(classes)
         nrows = int(np.ceil(len(self.classifiers)/2))
-        ncols = 2 if len(self.classifiers)>1 else 1
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=[nrows*7,ncols*7])
+        ncols = 2 if len(self.classifiers) > 1 else 1
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=[nrows*7, ncols*7])
         for index, classif in enumerate(self.classifiers):
             cm = self.conf_matrix[classif]
 
@@ -59,12 +59,10 @@ class ClassifierEvaluator:
                 axes = [axes]
             else:
                 axes = axes.flatten()
-            #except AttributeError:
-            #    pass
-            #axes[index].figure(figsize=[8, 8])
+
             im = axes[index].imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
             axes[index].set_title('CM of {} classifier'.format(classif))
-            if index%2==1:
+            if index % 2 == 1:
                 fig.colorbar(im, aspect=30, shrink=0.8, ax=axes[index])
             tick_marks = np.arange(len(classes))
             axes[index].set_xticks(tick_marks)
@@ -83,7 +81,7 @@ class ClassifierEvaluator:
 
             axes[index].set_ylabel('True label')
             axes[index].set_xlabel('Predicted label')
-            fig.tight_layout()
+            #fig.tight_layout()
         fig.savefig(self._config['report']['folderWithPlots']+os.sep\
                         +'Confusion_matrices'+self._suffix+'.png',dpi=400)
-        #fig.show()
+        plt.show()

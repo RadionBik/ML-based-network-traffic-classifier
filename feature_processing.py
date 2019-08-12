@@ -204,7 +204,6 @@ class FeatureTransformer:
         if not self.consider_iat:
             features = features.drop(list(features.filter(regex = 'iat')), axis = 1)
 
-        print(features.columns)
         F_tr,F_test, X_oh_tr,X_oh_test, t_tr,t_test = train_test_split(features,
                                                                        one_hot_features,
                                                                        targets,
