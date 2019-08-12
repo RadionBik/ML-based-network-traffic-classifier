@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+*.ipynb
+
+#python workspaces
+*.res
+.~*
+#figures/
+figures/*.*
+trained_classifiers/*.*
+#old code
+py/
+.idea
+
+#results
+*.txt
+*.csv
+*.docx
+*.doc
+*.odt
+
+venv
+config.ini
+csv_files
+pcap_files/*
+!pcap_files/example.pcap
