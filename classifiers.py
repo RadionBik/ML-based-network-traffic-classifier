@@ -7,7 +7,7 @@ import os
 from time import time
 from sklearn import metrics
 from sklearn.externals import joblib
-from sklearn.svm import SVC, LinearSVC
+from sklearn.svm import LinearSVC
 from sklearn.multiclass import OneVsOneClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -17,12 +17,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from config_loader import ConfigInit
-from feature_processing import read_csv, FeatureTransformer
+from feature_processing import FeatureTransformer, read_csv, prepare_data
 from report import ClassifierEvaluator
 
 import sys
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout,
+                    level=logging.INFO,
+                    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
 
@@ -147,36 +148,68 @@ class TrafficClassifiers:
         return predictions
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config",
         help="configuration file, defaults to config.ini",
         default='config.ini')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--load-processors', action='store_true',
+                        help='Override config to load processors')
+    group.add_argument('--fit-processors', action='store_true',
+                        help='Override config to fit processors')
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--load-classifiers', action='store_true',
+                       help='Override config to load classifiers')
+    group.add_argument('--fit-classifiers', action='store_true',
+                       help='Override config to fit classifiers')
     args = parser.parse_args()
+    return args
 
-    conf = ConfigInit(args.config).get()
 
-    logger.info('Loading csv file..')
+def main():
+    args = parse_args()
     config = configparser.ConfigParser()
     config.read(args.config)
-    csv_features, csv_targets = read_csv(config)
-    extract = FeatureTransformer(config=config)
+
+    logger.info('Loading csv file..')
+    csv_filename = os.path.join(config['offline']['csv_folder'],
+                                config['parser']['csvFileTraining'])
+
+    minflows = int(config['parser']['minNumberOfFlowsPerApp'])
+
+    data = read_csv(csv_filename)
+    csv_features, csv_targets = prepare_data(data, minflows=minflows)
+
+    transformer = FeatureTransformer(config=config)
     classif = TrafficClassifiers(config=config)
 
-    if conf['general'].getboolean('useTrainedFeatureProcessors'):
+    if args.load_processors:
         logger.info('Loading pretrained feature processors...')
-        X_train, y_train, X_test, y_test = extract.load_transform(csv_features, csv_targets)
-    else:
+        X_train, y_train, X_test, y_test = transformer.load_transform(csv_features, csv_targets)
+    elif args.fit_processors:
         logger.info('Fitting new feature processors...')
-        X_train, y_train, X_test, y_test = extract.fit_transform(csv_features, csv_targets)
+        X_train, y_train, X_test, y_test = transformer.fit_transform(csv_features, csv_targets)
+    elif config['general'].get('useTrainedFeatureProcessors'):
+        logger.info('Loading pretrained feature processors (as specified in config)...')
+        X_train, y_train, X_test, y_test = transformer.load_transform(csv_features, csv_targets)
+    else:
+        logger.info('Fitting new feature processors (as specified in config)...')
+        X_train, y_train, X_test, y_test = transformer.fit_transform(csv_features, csv_targets)
 
-    if conf['general'].getboolean('useTrainedClasiffiers'):
+    if args.load_classifiers:
         logger.info('Loading pretrained classifiers...')
         classif.load()
-    else:
+    elif args.fit_classifiers:
         logger.info('Fitting new classifiers...')
+        classif.fit(X_train, y_train)
+    elif config['general'].get('useTrainedClasiffiers'):
+        logger.info('Loading pretrained classifiers (as specified in config)...')
+        classif.load()
+    else:
+        logger.info('Fitting new classifiers (as specified in config)...')
         classif.fit(X_train, y_train)
 
     predictions = classif.predict(X_test)
@@ -184,7 +217,7 @@ def main():
     logger.info('Plotting evaluation results...')
     ev = ClassifierEvaluator(config, y_test, predictions)
     ev.plot_scores()
-    ev.plot_cm(extract.le.classes_)
+    ev.plot_cm(transformer.le.classes_)
 
 
 if __name__ == '__main__':

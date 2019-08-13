@@ -7,6 +7,13 @@ import os
 import pandas as pd
 
 
+class TransformNotFound(FileNotFoundError):
+    def __init(self, filename):
+        super().__init__('Transform {} was not found, please check it exists or run training first'.format(
+            filename
+        ))
+
+
 class FeatureExtractor:
     def __init__(self, consider_iat=True):
         self._consider_iat = consider_iat
@@ -193,7 +200,10 @@ class FeatureTransformer:
         return one_hot, features.drop(self.categ_features, axis=1)
 
     def _load_transform_one_hot(self, features):
-        self.one_hot = joblib.load(self._one_hot_file)
+        try:
+            self.one_hot = joblib.load(self._one_hot_file)
+        except FileNotFoundError as exc:
+            raise TransformNotFound(self._one_hot_file) from exc
         selected = features[self.categ_features]
         one_hot = self.one_hot.transform(selected).toarray()
         return one_hot, features.drop(self.categ_features, axis=1)
@@ -227,39 +237,42 @@ class FeatureTransformer:
         return self._split_and_label_features(one_hot_features, features, targets)
 
 
-def read_csv(config, csv_file=None):
-    """
-    process() removes rare protocols and flows, splits DataFrame
-    into target vector and feature matrix
-    """
-
-    if not csv_file:
-        csv_file = os.path.join(config['offline']['csv_folder'],
-                                config['parser']['csvFileTraining'])
-
-    flow_features = pd.read_csv(csv_file,
-                                sep='|',
-                                index_col=0)
-
-
-    # convert SSL_No_cert to SSL
+def _rename_protocols_inplace(flow_features):
+    #  TODO: make a non-modifying version
     flow_features.replace('SSL_No_Cert', 'SSL', inplace=True)
     flow_features.replace('Unencrypted_Jabber', 'Jabber', inplace=True)
     flow_features.replace('Viber', 'DNS', inplace=True)
+    return flow_features
 
-    flow_features.drop('subproto', axis=1, inplace=True)
 
-    flow_features.fillna(0, inplace=True)
-
-    # delete rarely occuring flows, identifying them first
+def _filter_apps(flow_features, minflows):
     found_apps = flow_features.proto.value_counts()
-    print(found_apps)
-    apps_to_del = [app for app, value in
-                   zip(found_apps.index, found_apps)
-                   if value < int(config['parser']['minNumberOfFLowsPerApp'])]
+    print('found apps:', found_apps)
+    good_apps = [app_index for app_index, flow_count in
+                 zip(found_apps.index, found_apps)
+                 if flow_count >= minflows]
 
-    flow_features = flow_features[flow_features['proto'].map(lambda x: x not in apps_to_del)]
+    flow_features = flow_features[flow_features['proto'].map(lambda x: x in good_apps)]
+    return flow_features
 
-    result_features = flow_features.drop('proto', axis=1), flow_features['proto']
 
-    return result_features
+def read_csv(filename):
+    """ a simple wrapper for pandas """
+    return pd.read_csv(filename,
+                       sep='|',
+                       index_col=0)
+
+
+def prepare_data(data, minflows: int = 20):
+    """
+    prepare_data() removes rare protocols and flows, splits DataFrame
+    into target vector and feature matrix
+    """
+
+    data = _rename_protocols_inplace(data)
+    data = _filter_apps(data, minflows)
+
+    data.drop('subproto', axis=1, inplace=True)
+    data.fillna(0, inplace=True)
+    features, protocols = data.drop('proto', axis=1), data['proto']
+    return features, protocols
