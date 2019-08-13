@@ -198,49 +198,33 @@ class FeatureTransformer:
         one_hot = self.one_hot.transform(selected).toarray()
         return one_hot, features.drop(self.categ_features, axis=1)
 
-    def fit_transform(self, features, targets):
-        one_hot_features, features = self._fit_transform_one_hot(features)
-
+    def _split_and_label_features(self, one_hot_features, features, targets):
         if not self.consider_iat:
-            features = features.drop(list(features.filter(regex = 'iat')), axis = 1)
+            features = features.drop(list(features.filter(regex='iat')), axis=1)
 
-        F_tr,F_test, X_oh_tr,X_oh_test, t_tr,t_test = train_test_split(features,
-                                                                       one_hot_features,
-                                                                       targets,
-                                                                       shuffle=True,
-                                                                       test_size=self._split,
-                                                                       stratify=targets,
-                                                                       random_state=self.random_seed)
-        
+        F_tr, F_test, X_oh_tr, X_oh_test, t_tr, t_test = train_test_split(features,
+                                                                          one_hot_features,
+                                                                          targets,
+                                                                          shuffle=True,
+                                                                          test_size=self._split,
+                                                                          stratify=targets,
+                                                                          random_state=self.random_seed)
+
         X_tr, y_tr = self._fit_transform_scale_and_labels(F_tr, t_tr)
         X_test, y_test = self._transform_scale_and_labels(F_test, t_test)
 
         if self.consider_tcp_flags:
-            return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test
+            return np.hstack([X_tr, X_oh_tr]), y_tr, np.hstack([X_test, X_oh_test]), y_test
         else:
             return X_tr, y_tr, X_test, y_test
 
-    def load_transform(self, features, targets):         
+    def fit_transform(self, features, targets):
+        one_hot_features, features = self._fit_transform_one_hot(features)
+        return self._split_and_label_features(one_hot_features, features, targets)
 
+    def load_transform(self, features, targets):
         one_hot_features, features = self._load_transform_one_hot(features)
-
-        if not self.consider_iat:
-            features = features.drop(list(features.filter(regex = 'iat')), axis = 1)
-
-        F_tr,F_test, X_oh_tr,X_oh_test, t_tr,t_test = train_test_split(features, 
-                                                                       one_hot_features,
-                                                                       targets, 
-                                                                       shuffle=True,
-                                                                       test_size=self._split,
-                                                                       stratify=targets)
-        
-        X_tr, y_tr = self._load_transform_scale_and_labels(F_tr, t_tr)
-        X_test, y_test = self._transform_scale_and_labels(F_test, t_test)
-
-        if self.consider_tcp_flags:
-            return np.hstack([X_tr,X_oh_tr]), y_tr, np.hstack([X_test,X_oh_test]), y_test
-        else:
-            return X_tr, y_tr, X_test, y_test
+        return self._split_and_label_features(one_hot_features, features, targets)
 
 
 def read_csv(config, csv_file=None):
