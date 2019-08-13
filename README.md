@@ -20,13 +20,11 @@ Depends on dpkt, numpy, sklearn, pandas libraries for Python 3.x
 
 * `feature_processing.py` contains classes for feature crafting and cleaning of `.csv` files, e.g. remove seldom flows, etc.
 
-* `config_loader.py` has a simple shared class for `config.ini` loading.  
-
 * `report.py` contains a class for evaluation of the classifiers, plotting confusion matrices and scores.
 
 * `classifiers.py` contain a wrapper class Traffic_Classifiers that allows for easy parameter optimization, training, restoring and testing of the ML algorithms with sklearn-like interface. The parameter search space is specified during initialization. *Extending with other algorithms is encouraged.*
 
-* `ndpiReader_xxx` are binaries of the `nDPI v.2.9(?)` library compiled for Ubuntu 16.04 and recent Manjaro (as of start of 2019).
+* `bin/ndpiReader_xxx` are binaries of the `nDPI v.2.9(?)` library compiled for Ubuntu 16.04 and recent Manjaro (as of start of 2019).
 
 * `trained_classifiers/` folder is used for storage of trained classifier that can be used later for validations on different traffic or in the live mode.
 
