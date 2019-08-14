@@ -74,6 +74,10 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
     server_index = df[df['is_client'] == 0].index
 
+    df['IAT'] = pd.concat([iat_server, iat_client])
+    client_iats = df[df['is_client'] == 1]['IAT']
+    server_iats = df[df['is_client'] == 0]['IAT']
+
     iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
     iat_server.index = server_index
 
