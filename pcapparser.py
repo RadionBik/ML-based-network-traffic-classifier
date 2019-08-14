@@ -54,7 +54,6 @@ def ip4_from_string(ip: str) -> bytes:
 
 
 def _extract_rawflow_features(df: pd.DataFrame) -> dict:
-    stats = {}
 
     client_bulks = df[(df['transp_payload'] > 0) &
                       (df['is_client'] == 1)
@@ -64,16 +63,28 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
                       (df['is_client'] == 0)
                       ]['transp_payload']
 
-    client_packets = df[df['is_client'] == 0
+    client_packets = df[df['is_client'] == 1
                         ]['ip_payload']
 
     server_packets = df[df['is_client'] == 0
                         ]['ip_payload']
 
+    client_index = df[df['is_client'] == 1].index
+    client_iats = df[df['is_client'] == 1]['IAT']
+    iat_client = pd.to_timedelta(pd.Series(client_index).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_client.index = client_index
+
+    server_index = df[df['is_client'] == 0].index
+    server_iats = df[df['is_client'] == 0]['IAT']
+    iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_server.index = server_index
+
+    df['IAT'] = pd.concat([iat_server, iat_client])
+
     fault_avoider = (
         lambda values, index=0: values.iloc[index] if len(values) > index else 0)
 
-    stats.update({
+    stats = {
         'proto': df['proto'].iloc[0],
         'subproto': df['subproto'].iloc[0],
         'is_tcp': df['is_tcp'].iloc[0],
@@ -129,24 +140,7 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'client_packet_75q': client_packets.quantile(.75),
         'client_packets_bytes': client_packets.sum(),
         'client_packets_number': len(client_packets),
-    })
 
-    iat_client = pd.to_timedelta(pd.Series(
-        df[df['is_client'] == 1].index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_client.index = df[df['is_client'] == 1].index
-
-    iat_server = pd.to_timedelta(pd.Series(
-        df[df['is_client'] == 0].index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_server.index = df[df['is_client'] == 0].index
-
-    df['IAT'] = pd.concat([iat_server, iat_client])
-
-    client_iats = df[df['is_client'] == 1
-                     ]['IAT']
-    server_iats = df[df['is_client'] == 0
-                     ]['IAT']
-
-    stats.update({
         'client_iat_mean': client_iats.mean(),
         'client_iat_median': client_iats.quantile(.5),
         'client_iat_25q': client_iats.quantile(.25),
@@ -156,7 +150,7 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'server_iat_median': server_iats.quantile(.5),
         'server_iat_25q': server_iats.quantile(.25),
         'server_iat_75q': server_iats.quantile(.75),
-    })
+    }
 
     return stats
 
