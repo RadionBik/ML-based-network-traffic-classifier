@@ -250,10 +250,17 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             if max_packets_per_flow and len(flow) > max_packets_per_flow:
                 continue
 
+            app = apps[connection].split('.')
+
             packet = {
                 'TS': timestamp,
                 'ip_payload': len(ip.data),
                 'transp_payload': len(seg.data),
+                'proto': app[0],
+                'subproto': app[1] if len(app) > 1 else '',
+                'tcp_flags': seg.flags if transp_proto == 'tcp' else 0,
+                'tcp_win': seg.win if transp_proto == 'tcp' else 0,
+                'is_tcp': transp_proto == 'tcp'
             }
 
             if client_tuple[connection] == source:
@@ -263,18 +270,6 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             else:
                 raise ValueError
 
-            if transp_proto == 'tcp':
-                packet['tcp_flags']=seg.flags
-                packet['tcp_win'] = seg.win
-                packet['is_tcp'] = True
-            else:
-                packet['tcp_flags'] = 0
-                packet['tcp_win'] = 0
-                packet['is_tcp'] = False
-
-            app = apps[connection].split('.')
-            packet['proto'] = app[0]
-            packet['subproto'] = app[1] if len(app) > 1 else ''
             flows[connection].append(packet)
     return flows
 
