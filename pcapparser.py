@@ -70,16 +70,18 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
                         ]['ip_payload']
 
     client_index = df[df['is_client'] == 1].index
-    client_iats = df[df['is_client'] == 1]['IAT']
     iat_client = pd.to_timedelta(pd.Series(client_index).diff().fillna('0')) / pd.offsets.Second(1)
     iat_client.index = client_index
 
     server_index = df[df['is_client'] == 0].index
-    server_iats = df[df['is_client'] == 0]['IAT']
+
     iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
     iat_server.index = server_index
 
     df['IAT'] = pd.concat([iat_server, iat_client])
+
+    server_iats = df[df['is_client'] == 0]['IAT']
+    client_iats = df[df['is_client'] == 1]['IAT']
 
     fault_avoider = (
         lambda values, index=0: values.iloc[index] if len(values) > index else 0)
