@@ -197,26 +197,6 @@ def _get_flow_apps(ndpi: str, filename: str) -> dict:
     return _parse_ndpi_output(raw)
 
 
-DEFAULT_FLOW_FEATURES = frozenset(
-    {
-        'is_client',
-        'TS',
-        'ip_payload',
-        'transp_payload',
-        'tcp_flags',
-        'tcp_win',
-        'proto',
-        'subproto',
-        'is_tcp',
-   }
-)
-
-
-def Flow():
-    """ Looks like a class but it isn't """
-    return {feature: [] for feature in DEFAULT_FLOW_FEATURES}
-
-
 def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optional[int] = None) -> dict:
     """ transform packets to flows for each app """
     flows = dict.fromkeys(apps)
