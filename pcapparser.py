@@ -190,13 +190,13 @@ def _parse_ndpi_output(raw: str) -> dict:
     return apps
 
 
-def _get_flow_apps(ndpi_filename: str, pcap_filename: str) -> dict:
+def _get_ndpi_output(ndpi_filename: str, pcap_filename: str) -> str:
     pipe = Popen(['./' + ndpi_filename,
                   '-i', pcap_filename, "-v2"],
                  stdout=PIPE,
                  universal_newlines=True)
     stdout, stderr = pipe.communicate()
-    return _parse_ndpi_output(stdout)
+    return stdout
 
 
 def _filter_packets(source):
@@ -258,21 +258,24 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
 
 
 def _format_connection(connection: Connection) -> str:
-    peers = list(connection.peers)
+    peers = list(sorted(connection.peers))
     return '{} {}:{} {}:{}'.format(connection.proto.upper(),
                                    peers[0].address, peers[0].port,
                                    peers[1].address, peers[1].port)
 
 
-def _get_flows_features(ndpi_filename: str,
-                        traffic_filename: str,
-                        max_packets_per_flow: typing.Optional[int] = None) -> pd.DataFrame:
+def _get_labeled_flows(ndpi_filename, traffic_filename, max_packets_per_flow=None):
     logging.info('Started extracting ground truth labels for flows...')
-    apps = _get_flow_apps(ndpi_filename, traffic_filename)
+    output = _get_ndpi_output(ndpi_filename, traffic_filename)
+    apps = _parse_ndpi_output(output)
     logging.info('Got {} unique flows!'.format(len(apps)))
+    raw_flows = _get_raw_flows(apps, traffic_filename, max_packets_per_flow=max_packets_per_flow)
+    return raw_flows
+
+
+def _get_flows_features(raw_flows: dict) -> pd.DataFrame:
     flows = {}
     logging.info('Started extracting features of packets...')
-    raw_flows = _get_raw_flows(apps, traffic_filename, max_packets_per_flow=max_packets_per_flow)
     for flow_counter, (connection, flow) in enumerate(raw_flows.items()):
         key = _format_connection(connection)
         chronoligical_df = _raw_flow_to_df(flow)
@@ -304,11 +307,10 @@ def main():
     max_packets_per_flow = int(config['parser']['packetLimitPerFlow'])
     pcap_filenames = args.pcapfiles or [config['parser']['PCAPfilename']]
     for pcap_filename in pcap_filenames:
-        features = _get_flows_features(
-            config['parser']['nDPIfilename'],
+        flows = _get_labeled_flows(config['parser']['nDPIfilename'],
             pcap_filename,
-            max_packets_per_flow=max_packets_per_flow
-        )
+            max_packets_per_flow=max_packets_per_flow)
+        features = _get_flows_features(flows)
 
         csv_output_folder = config['offline']['csv_folder']
         pure_filename = _pure_filename(pcap_filename)
