@@ -194,11 +194,13 @@ def _parse_ndpi_output(raw: str) -> dict:
     return apps
 
 
-def _get_flow_apps(ndpi: str, filename: str) -> dict:
-    pipe = Popen(['./' + ndpi,
-                  '-i', filename, "-v2"], stdout=PIPE)
-    raw = pipe.communicate()[0].decode("utf-8")
-    return _parse_ndpi_output(raw)
+def _get_flow_apps(ndpi_filename: str, pcap_filename: str) -> dict:
+    pipe = Popen(['./' + ndpi_filename,
+                  '-i', pcap_filename, "-v2"],
+                 stdout=PIPE,
+                 universal_newlines=True)
+    stdout, stderr = pipe.communicate()
+    return _parse_ndpi_output(stdout)
 
 
 def _filter_packets(source):
