@@ -283,7 +283,7 @@ def _get_flows_features(ndpi_filename: str,
         if flow_counter % 100 == 0:
             logging.info(f'Processed {flow_counter} flows...')
     else:
-        logging.info(f'Processed {len(raw_flows)} flows total')
+        logging.info(f'Processed {len(flows)} flows total')
     return pd.DataFrame(flows).T
 
 
@@ -304,22 +304,24 @@ def main():
     config = configparser.ConfigParser()
     config.read(args.config)
     max_packets_per_flow = int(config['parser']['packetLimitPerFlow'])
-    pcap_files = args.pcapfiles or [config['parser']['PCAPfilename']]
-    for pcap_file in pcap_files:
+    pcap_filenames = args.pcapfiles or [config['parser']['PCAPfilename']]
+    for pcap_filename in pcap_filenames:
         features = _get_flows_features(
             config['parser']['nDPIfilename'],
-            pcap_file,
+            pcap_filename,
             max_packets_per_flow=max_packets_per_flow
         )
-        pure_filename = _pure_filename(pcap_file)
-        csv_filename = os.path.join(
-            config['offline']['csv_folder'],
+
+        csv_output_folder = config['offline']['csv_folder']
+        pure_filename = _pure_filename(pcap_filename)
+        csv_output_filename = os.path.join(
+            csv_output_folder,
             'flows_{}split_{}.csv'.format(
                 max_packets_per_flow,
                 pure_filename)
         )
-        logging.info('Saving features to {}...'.format(csv_filename))
-        features.to_csv(csv_filename, index=True, sep='|')
+        logging.info('Saving features to {}...'.format(csv_output_filename))
+        features.to_csv(csv_output_filename, index=True, sep='|')
 
 
 if __name__ == "__main__":
