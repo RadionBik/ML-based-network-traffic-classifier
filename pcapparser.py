@@ -8,7 +8,6 @@ import re
 import socket
 from subprocess import Popen, PIPE
 import typing
-
 import dpkt
 import pandas as pd
 
@@ -91,8 +90,8 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'subproto': df['subproto'].iloc[0],
         'is_tcp': df['is_tcp'].iloc[0],
 
-        'client_found_tcp_flags': sorted(set(df[df['is_client'] == 1]['tcp_flags'])),
-        'server_found_tcp_flags': sorted(set(df[df['is_client'] == 0]['tcp_flags'])),
+        'client_found_tcp_flags': str(sorted(set(df[df['is_client'] == 1]['tcp_flags']))),
+        'server_found_tcp_flags': str(sorted(set(df[df['is_client'] == 0]['tcp_flags']))),
 
         'client_tcp_window_mean': df[df['is_client'] == 1]['tcp_win'].mean(),
         'server_tcp_window_mean': df[df['is_client'] == 0]['tcp_win'].mean(),
@@ -319,7 +318,7 @@ def main():
                 pure_filename)
         )
         logging.info('Saving features to {}...'.format(csv_output_filename))
-        features.to_csv(csv_output_filename, index=True, sep='|')
+        features.to_csv(csv_output_filename, index=True, sep='|', na_rep=0, columns=sorted(features.columns))
 
 
 if __name__ == "__main__":
