@@ -17,6 +17,10 @@ logging.basicConfig(level='INFO')
 logger = logging.getLogger(__name__)
 
 
+class UnknownProtocol(Exception):
+    pass
+
+
 class Endpoint(typing.NamedTuple):
     address: str
     port: int
@@ -197,25 +201,29 @@ def _get_flow_apps(ndpi: str, filename: str) -> dict:
     return _parse_ndpi_output(raw)
 
 
+def _filter_packets(source):
+    for timestamp, raw in source:
+        eth = dpkt.ethernet.Ethernet(raw)
+        ip = eth.data
+        if not isinstance(ip, dpkt.ip.IP):
+            continue
+        seg = ip.data
+        if isinstance(seg, (dpkt.tcp.TCP, dpkt.udp.UDP)):
+            yield timestamp, ip, seg
+
+
 def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optional[int] = None) -> dict:
     """ transform packets to flows for each app """
     flows = dict.fromkeys(apps)
     client_tuple = dict.fromkeys(apps.keys())
     with open(filename, "rb") as pcap_file:
-        for timestamp, raw in dpkt.pcap.Reader(pcap_file):
-            eth = dpkt.ethernet.Ethernet(raw)
-            ip = eth.data
-
-            if not isinstance(ip, dpkt.ip.IP):
-                continue
-            seg = ip.data
+        for timestamp, ip, seg in _filter_packets(dpkt.pcap.Reader(pcap_file)):
             if isinstance(seg, dpkt.tcp.TCP):
                 transp_proto = "tcp"
             elif isinstance(seg, dpkt.udp.UDP):
                 transp_proto = "udp"
             else:
-                continue
-
+                raise UnknownProtocol(seg.__class__.__name__)
             source = Endpoint(ip_to_string(ip.src), seg.sport)
             destination = Endpoint(ip_to_string(ip.dst), seg.dport)
             connection = Connection(transp_proto, frozenset([source, destination]))
@@ -226,6 +234,9 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             if not client_tuple[connection]:
                 client_tuple[connection] = source
                 flows[connection] = []
+
+            assert client_tuple[connection] in (source, destination)
+
             flow = flows[connection]
             if max_packets_per_flow and len(flow) > max_packets_per_flow:
                 continue
@@ -240,15 +251,9 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
                 'subproto': app[1] if len(app) > 1 else '',
                 'tcp_flags': seg.flags if transp_proto == 'tcp' else 0,
                 'tcp_win': seg.win if transp_proto == 'tcp' else 0,
-                'is_tcp': transp_proto == 'tcp'
+                'is_tcp': transp_proto == 'tcp',
+                'is_client': client_tuple[connection] == source
             }
-
-            if client_tuple[connection] == source:
-                packet['is_client'] = True
-            elif client_tuple[connection] == destination:
-                packet['is_client'] = False
-            else:
-                raise ValueError
 
             flows[connection].append(packet)
     return flows
@@ -273,8 +278,8 @@ def _get_flows_features(ndpi_filename: str,
     for flow_counter, (connection, flow) in enumerate(raw_flows.items()):
         key = _format_connection(connection)
         sorted_df = _raw_flow_to_sorted_dataframe(flow)
-        stats = _extract_rawflow_features(sorted_df)
-        flows[key] = stats
+        flow_features = _extract_rawflow_features(sorted_df)
+        flows[key] = flow_features
         if flow_counter % 100 == 0:
             logging.info(f'Processed {flow_counter} flows...')
     else:
