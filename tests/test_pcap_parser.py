@@ -38,5 +38,3 @@ def test_similar_features():
     features = pcapparser._get_flows_features(flows)
     features2 = pcapparser._get_flows_features(flows)
     assert features.equals(features2)
-    features.to_csv('result1.csv')
-    features2.to_csv('result2.csv')

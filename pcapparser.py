@@ -304,9 +304,11 @@ def main():
     max_packets_per_flow = int(config['parser']['packetLimitPerFlow'])
     pcap_filenames = args.pcapfiles or [config['parser']['PCAPfilename']]
     for pcap_filename in pcap_filenames:
-        flows = _get_labeled_flows(config['parser']['nDPIfilename'],
+        flows = _get_labeled_flows(
+            config['parser']['nDPIfilename'],
             pcap_filename,
-            max_packets_per_flow=max_packets_per_flow)
+            max_packets_per_flow=max_packets_per_flow
+        )
         features = _get_flows_features(flows)
 
         csv_output_folder = config['offline']['csv_folder']
