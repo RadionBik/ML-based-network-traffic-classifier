@@ -161,7 +161,7 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
     return stats
 
 
-def _raw_flow_to_sorted_dataframe(flow):
+def _raw_flow_to_df(flow):
     df = pd.DataFrame(flow)
     df.set_index(pd.to_datetime(df['TS'], unit='s'), inplace=True)
     return df.drop(['TS'], axis=1)
@@ -277,8 +277,8 @@ def _get_flows_features(ndpi_filename: str,
     raw_flows = _get_raw_flows(apps, traffic_filename, max_packets_per_flow=max_packets_per_flow)
     for flow_counter, (connection, flow) in enumerate(raw_flows.items()):
         key = _format_connection(connection)
-        sorted_df = _raw_flow_to_sorted_dataframe(flow)
-        flow_features = _extract_rawflow_features(sorted_df)
+        chronoligical_df = _raw_flow_to_df(flow)
+        flow_features = _extract_rawflow_features(chronoligical_df)
         flows[key] = flow_features
         if flow_counter % 100 == 0:
             logging.info(f'Processed {flow_counter} flows...')
