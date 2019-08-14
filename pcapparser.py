@@ -245,35 +245,37 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             # if client tuple is empty, then no packets from the flow has been seen so far
             if not client_tuple[connection]:
                 client_tuple[connection] = source
-                flows[connection] = Flow()
+                flows[connection] = []
             flow = flows[connection]
-            if max_packets_per_flow and (len(flow['TS'])) > max_packets_per_flow:
+            if max_packets_per_flow and len(flow) > max_packets_per_flow:
                 continue
 
-            flow['TS'].append(timestamp)
-            flow['ip_payload'].append(len(ip.data))
-            flow['transp_payload'].append(len(seg.data))
+            packet = {
+                'TS': timestamp,
+                'ip_payload': len(ip.data),
+                'transp_payload': len(seg.data),
+            }
 
             if client_tuple[connection] == source:
-                flow['is_client'].append(True)
+                packet['is_client'] = True
             elif client_tuple[connection] == destination:
-                flow['is_client'].append(False)
+                packet['is_client'] = False
             else:
                 raise ValueError
 
             if transp_proto == 'tcp':
-                flow['tcp_flags'].append(seg.flags)
-                flow['tcp_win'].append(seg.win)
-                flow['is_tcp'].append(True)
+                packet['tcp_flags']=seg.flags
+                packet['tcp_win'] = seg.win
+                packet['is_tcp'] = True
             else:
-                flow['tcp_flags'].append(0)
-                flow['tcp_win'].append(0)
-                flow['is_tcp'].append(False)
+                packet['tcp_flags'] = 0
+                packet['tcp_win'] = 0
+                packet['is_tcp'] = False
 
             app = apps[connection].split('.')
-            flow['proto'].append(app[0])
-            flow['subproto'].append(app[1] if len(app) > 1 else '')
-
+            packet['proto'] = app[0]
+            packet['subproto'] = app[1] if len(app) > 1 else ''
+            flows[connection].append(packet)
     return flows
 
 
