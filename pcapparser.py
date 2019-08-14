@@ -8,7 +8,6 @@ import re
 import socket
 from subprocess import Popen, PIPE
 import typing
-
 import dpkt
 import pandas as pd
 
@@ -321,7 +320,7 @@ def main():
                 pure_filename)
         )
         logging.info('Saving features to {}...'.format(csv_output_filename))
-        features.to_csv(csv_output_filename, index=True, sep='|')
+        features.to_csv(csv_output_filename, index=True, sep='|', na_rep=0, columns=sorted(features.columns))
 
 
 if __name__ == "__main__":
