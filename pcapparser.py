@@ -188,7 +188,7 @@ def _parse_ndpi_output(raw: str) -> dict:
 
 
 def _get_ndpi_output(ndpi_filename: str, pcap_filename: str) -> str:
-    pipe = Popen(['./' + ndpi_filename,
+    pipe = Popen([ndpi_filename,
                   '-i', pcap_filename, "-v2"],
                  stdout=PIPE,
                  universal_newlines=True)
