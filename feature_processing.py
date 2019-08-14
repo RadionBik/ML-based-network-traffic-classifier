@@ -14,124 +14,6 @@ class TransformNotFound(FileNotFoundError):
         ))
 
 
-class FeatureExtractor:
-    def __init__(self, consider_iat=True):
-        self._consider_iat = consider_iat
-
-    def extract_features(self, raw_df, consider_iat=True):
-        # print(raw_df.head())
-        stats = {}
-
-        client_bulks = raw_df[(raw_df['transp_payload'] > 0) &
-                              (raw_df['is_client'] == 1)
-                              ]['transp_payload']
-
-        server_bulks = raw_df[(raw_df['transp_payload'] > 0) &
-                              (raw_df['is_client'] == 0)
-                              ]['transp_payload']
-
-        client_packets = raw_df[raw_df['is_client'] == 0
-                                ]['ip_payload']
-
-        server_packets = raw_df[raw_df['is_client'] == 0
-                                ]['ip_payload']
-
-        fault_avoider = (
-            lambda values, index=0: values.iloc[index] if len(values) > index else 0)
-
-        stats.update({
-            'proto': raw_df['proto'].iloc[0],
-            'subproto': raw_df['subproto'].iloc[0],
-            'is_tcp': raw_df['is_tcp'].iloc[0],
-
-            'client_found_tcp_flags': sorted(list(set(raw_df[raw_df['is_client'] == 1]['tcp_flags']))),
-            'server_found_tcp_flags': sorted(list(set(raw_df[raw_df['is_client'] == 0]['tcp_flags']))),
-
-            'client_tcp_window_mean': raw_df[raw_df['is_client'] == 1]['tcp_win'].mean(),
-            'server_tcp_window_mean': raw_df[raw_df['is_client'] == 0]['tcp_win'].mean(),
-
-            'client_bulk0': fault_avoider(client_bulks, 0),
-            'client_bulk1': fault_avoider(client_bulks, 1),
-            'server_bulk0': fault_avoider(server_bulks, 0),
-            'server_bulk1': fault_avoider(server_bulks, 1),
-
-            'client_packet0': fault_avoider(client_packets, 0),
-            'client_packet1': fault_avoider(client_packets, 1),
-            'server_packet0': fault_avoider(server_packets, 0),
-            'server_packet1': fault_avoider(server_packets, 1),
-
-            'server_bulk_max': server_bulks.max(),
-            'server_bulk_min': server_bulks.min(),
-            'server_bulk_mean': server_bulks.mean(),
-            'server_bulk_median': server_bulks.quantile(.5),
-            'server_bulk_25q': server_bulks.quantile(.25),
-            'server_bulk_75q': server_bulks.quantile(.75),
-            'server_bulks_bytes': server_bulks.sum(),
-            'server_bulks_number': len(server_bulks),
-
-            'client_bulk_max': client_bulks.max(),
-            'client_bulk_min': client_bulks.min(),
-            'client_bulk_mean': client_bulks.mean(),
-            'client_bulk_median': client_bulks.quantile(.5),
-            'client_bulk_25q': client_bulks.quantile(.25),
-            'client_bulk_75q': client_bulks.quantile(.75),
-            'client_bulks_bytes': client_bulks.sum(),
-            'client_bulks_number': len(client_bulks),
-
-            'server_packet_max': server_packets.max(),
-            'server_packet_min': server_packets.min(),
-            'server_packet_mean': server_packets.mean(),
-            'server_packet_median': server_packets.quantile(.5),
-            'server_packet_25q': server_packets.quantile(.25),
-            'server_packet_75q': server_packets.quantile(.75),
-            'server_packets_bytes': server_packets.sum(),
-            'server_packets_number': len(server_packets),
-
-            'client_packet_max': client_packets.max(),
-            'client_packet_min': client_packets.min(),
-            'client_packet_mean': client_packets.mean(),
-            'client_packet_median': client_packets.quantile(.5),
-            'client_packet_25q': client_packets.quantile(.25),
-            'client_packet_75q': client_packets.quantile(.75),
-            'client_packets_bytes': client_packets.sum(),
-            'client_packets_number': len(client_packets),
-        })
-
-        iat_client = pd.to_timedelta(pd.Series(
-            raw_df[raw_df['is_client'] == 1].index).diff().fillna('0')) / pd.offsets.Second(1)
-        iat_client.index = raw_df[raw_df['is_client'] == 1].index
-
-        iat_server = pd.to_timedelta(pd.Series(
-            raw_df[raw_df['is_client'] == 0].index).diff().fillna('0')) / pd.offsets.Second(1)
-        iat_server.index = raw_df[raw_df['is_client'] == 0].index
-
-        raw_df['IAT'] = pd.concat([iat_server, iat_client])
-
-        client_iats = raw_df[raw_df['is_client'] == 1
-                             ]['IAT']
-        server_iats = raw_df[raw_df['is_client'] == 0
-                             ]['IAT']
-
-        stats.update({
-            #'client_iat_max': client_iats.max(),
-            #'client_iat_min': client_iats.min(),
-            'client_iat_mean': client_iats.mean(),
-            'client_iat_median': client_iats.quantile(.5),
-            'client_iat_25q': client_iats.quantile(.25),
-            'client_iat_75q': client_iats.quantile(.75),
-
-            #'server_iat_max': server_iats.max(),
-            #'server_iat_min': server_iats.min(),
-            'server_iat_mean': server_iats.mean(),
-            'server_iat_median': server_iats.quantile(.5),
-            'server_iat_25q': server_iats.quantile(.25),
-            'server_iat_75q': server_iats.quantile(.75),
-        })
-
-        # return pd.Series(stats, index=stats.keys()).fillna(0)
-        return stats
-
-
 class FeatureTransformer:
     """
     fit_transform() processes raw targets and features pandas objects,
@@ -193,13 +75,13 @@ class FeatureTransformer:
     def _transform_scale_and_labels(self, X, y):
         return self.scaler.transform(X), self.le.transform(y)
 
-    def _fit_transform_one_hot(self, features):
+    def _fit_transform_one_hot(self, features) -> tuple:
         selected = features[self.categ_features]
         one_hot = self.one_hot.fit_transform(selected).toarray()
         joblib.dump(self.one_hot, self._one_hot_file)
         return one_hot, features.drop(self.categ_features, axis=1)
 
-    def _load_transform_one_hot(self, features):
+    def _load_transform_one_hot(self, features) -> tuple:
         try:
             self.one_hot = joblib.load(self._one_hot_file)
         except FileNotFoundError as exc:
