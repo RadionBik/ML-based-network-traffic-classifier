@@ -100,40 +100,42 @@ class TrafficClassifiers:
             rand_state_key = 'estimator__random_state'
         return dict(search.best_params_, **{rand_state_key: self.random_seed})
 
-    def fit(self, X, y):
-        for classif_name in self.classifiers:
-            if self._config['MLtoTest'].getboolean(classif_name):
-                opt_suffix = ''
-                if self._config['MLtoOptimize'].getboolean(classif_name):
-                    logger.info('Searching parameters for {}...'.format(classif_name))
-                    opt_suffix = self._suffix_for_optimized
-                    opt_params = self._search_classif_parameters(classif_name, X, y)
-                    self.classifiers[classif_name].set_params(**opt_params)
+    @property
+    def enabled_classifiers(self) -> tuple:
+        for name, classif in self.classifiers.items():
+            if self._config['MLtoTest'].getboolean(name):
+                yield name, classif
 
-                logger.info('Started fitting {}...'.format(classif_name))
-                self.classifiers[classif_name].fit(X, y)
-                joblib.dump(self.classifiers[classif_name],
-                            self._config['general']['classifiers_folder'] + os.sep \
-                            + classif_name + opt_suffix + self._suffix + '.cla')
+    def classif_filename(self, classif_name):
+        opt_suffix = self._suffix_for_optimized if self.optimized(classif_name) else ''
+        filename = os.path.join(self._config['general']['classifiers_folder'],
+                                f'{classif_name}{opt_suffix}{self._suffix}.cla')
+        return filename
+
+    def optimized(self, classif_name):
+        return self._config['MLtoOptimize'].getboolean(classif_name)
+
+    def fit(self, X, y):
+        for classif_name, classif in self.enabled_classifiers:
+            if self.optimized(classif_name):
+                logger.info('Searching parameters for {}...'.format(classif_name))
+                opt_params = self._search_classif_parameters(classif_name, X, y)
+                self.classifiers[classif_name].set_params(**opt_params)
+
+            logger.info('Started fitting {}...'.format(classif_name))
+            self.classifiers[classif_name].fit(X, y)
+            joblib.dump(self.classifiers[classif_name],
+                        self.classif_filename(classif_name))
 
     def load(self):
-        for classif_name in self.classifiers:
-            if self._config['MLtoTest'].getboolean(classif_name):
-                opt_suffix = ''
-                if self._config['MLtoOptimize'].getboolean(classif_name):
-                    opt_suffix = self._suffix_for_optimized
-                filename = os.path.join(self._config['general']['classifiers_folder'],
-                                        f'{classif_name}{opt_suffix}{self._suffix}.cla')
-                self.classifiers[classif_name] = joblib.load(filename)
+        for classif_name, classif in self.enabled_classifiers:
+            self.classifiers[classif_name] = joblib.load(self.classif_filename(classif_name))
 
     def predict(self, X):
-        predictions = {}
-        for classif_name in self.classifiers:
-            if self._config['MLtoTest'].getboolean(classif_name):
-                preds = self.classifiers[classif_name].predict(X)
-                predictions.update({classif_name: preds})
-
-        return predictions
+        return {
+            classif_name: classif.predict(X)
+            for classif_name, classif in self.enabled_classifiers
+        }
 
 
 def parse_args():
