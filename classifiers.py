@@ -4,24 +4,24 @@ import argparse
 import configparser
 import logging
 import os
+import sys
 from time import time
 
 from sklearn import metrics
-from sklearn.externals import joblib
-from sklearn.svm import LinearSVC
-from sklearn.multiclass import OneVsOneClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.externals import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
+from sklearn.multiclass import OneVsOneClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 
 from feature_processing import FeatureTransformer, read_csv, prepare_data
 from report import ClassifierEvaluator
 
-import sys
 logging.basicConfig(stream=sys.stdout,
                     level=logging.INFO,
                     format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
@@ -40,30 +40,35 @@ class TrafficClassifiers:
                 'estimator__loss': ['squared_hinge'],
             },
 
-            'DecTree': {"max_depth": [i for i in range(5, 20) if i % 3 == 0],
-                        "max_features": [i for i in range(10, 40) if i % 10 == 0],
-                        "criterion": ["entropy"]},
-            'RandomForest': {"n_estimators": [i for i in range(10, 50) if i % 10 == 0],
-                             "max_depth": [i for i in range(3, 16) if i % 3 == 0],
-                             # "max_features": sp_randint(1, 11),
-                             "criterion": ["entropy"]},
-            'GradBoost': {"n_estimators" : [50],
-                          "max_depth":  [i for i in range(2,6)],
-                          # "max_features": sp_randint(1, 11),
-                          "learning_rate": [0.01, 0.05, 0.1]},
-            'MLP': {"hidden_layer_sizes": [(i, i) for i in range(80, 121) if i % 40 == 0],
-                    "alpha": [0.0001, 0.001, 0.01]}
+            'DecTree': {
+                "max_depth": [i for i in range(5, 20) if i % 3 == 0],
+                "max_features": [i for i in range(10, 40) if i % 10 == 0],
+                "criterion": ["entropy"]
+            },
+            'RandomForest': {
+                "n_estimators": [i for i in range(10, 50) if i % 10 == 0],
+                "max_depth": [i for i in range(3, 16) if i % 3 == 0],
+                "criterion": ["entropy"]
+            },
+            'GradBoost': {
+                "n_estimators": [50],
+                "max_depth": [i for i in range(2, 6)],
+                "learning_rate": [0.01, 0.05, 0.1]
+            },
+            'MLP': {
+                "hidden_layer_sizes": [(i, i) for i in range(80, 121) if i % 40 == 0],
+                "alpha": [0.0001, 0.001, 0.01]
+            }
         }
 
         self.classifiers = {
-            'LogRegr':   LogisticRegression(random_state=self.random_seed,
-                                            multi_class='auto',
-                                            solver='lbfgs',
-                                            max_iter=200,
-                                            n_jobs=-1),
-
+            'LogRegr': LogisticRegression(random_state=self.random_seed,
+                                          multi_class='auto',
+                                          solver='lbfgs',
+                                          max_iter=200,
+                                          n_jobs=-1),
             'SVM':
-            OneVsOneClassifier(LinearSVC(random_state=self.random_seed, tol=1e-5), n_jobs=-1),
+                OneVsOneClassifier(LinearSVC(random_state=self.random_seed, tol=1e-5), n_jobs=-1),
             'DecTree': DecisionTreeClassifier(random_state=self.random_seed),
             'RandomForest': RandomForestClassifier(random_state=self.random_seed),
             'GradBoost': GradientBoostingClassifier(random_state=self.random_seed),
@@ -71,10 +76,9 @@ class TrafficClassifiers:
         }
 
         self._suffix_for_optimized = '_opt'
-        self._suffix = file_suffix if file_suffix else self._config['general']['fileSaverSuffix']
+        self._suffix = file_suffix or self._config['general']['fileSaverSuffix']
 
     def _search_classif_parameters(self, classifier_name, X, y):
-    
         X_tr, X_val, y_tr, y_val = train_test_split(X, y,
                                                     shuffle=True,
                                                     test_size=.1,
@@ -90,11 +94,11 @@ class TrafficClassifiers:
         search.fit(X_val, y_val)
         logger.info('Search took {:.2f} seconds'.format(time() - start))
         logger.info('Best parameters are {} with score {:.4f}'.format(search.best_params_, search.best_score_))
-        
+
         rand_state_key = 'random_state'
         if isinstance(self.classifiers[classifier_name], OneVsOneClassifier):
             rand_state_key = 'estimator__random_state'
-        return dict(search.best_params_, **{rand_state_key : self.random_seed})
+        return dict(search.best_params_, **{rand_state_key: self.random_seed})
 
     def fit(self, X, y):
         for classif_name in self.classifiers:
@@ -109,8 +113,8 @@ class TrafficClassifiers:
                 logger.info('Started fitting {}...'.format(classif_name))
                 self.classifiers[classif_name].fit(X, y)
                 joblib.dump(self.classifiers[classif_name],
-                            self._config['general']['classifiers_folder']+os.sep\
-                            + classif_name+opt_suffix+self._suffix+'.cla')
+                            self._config['general']['classifiers_folder'] + os.sep \
+                            + classif_name + opt_suffix + self._suffix + '.cla')
 
     def load(self):
         for classif_name in self.classifiers:
@@ -118,9 +122,9 @@ class TrafficClassifiers:
                 opt_suffix = ''
                 if self._config['MLtoOptimize'].getboolean(classif_name):
                     opt_suffix = self._suffix_for_optimized
-                self.classifiers[classif_name]=joblib.load(self._config['general']['classifiers_folder']+\
-                                                           os.sep+classif_name+opt_suffix+\
-                                                           self._suffix+'.cla')
+                filename = os.path.join(self._config['general']['classifiers_folder'],
+                                        f'{classif_name}{opt_suffix}{self._suffix}.cla')
+                self.classifiers[classif_name] = joblib.load(filename)
 
     def predict(self, X):
         predictions = {}
@@ -140,9 +144,9 @@ def parse_args():
         default='config.ini')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--load-processors', action='store_true',
-                        help='Override config to load processors')
+                       help='Override config to load processors')
     group.add_argument('--fit-processors', action='store_true',
-                        help='Override config to fit processors')
+                       help='Override config to fit processors')
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--load-classifiers', action='store_true',
@@ -186,7 +190,6 @@ def main():
     else:
         logger.info('Fitting new feature processors...')
         X_train, y_train, X_test, y_test = transformer.fit_transform(csv_features, csv_targets)
-
 
     if _get_overridden_bool_value(args.load_classifiers,
                                   args.fit_classifiers,
