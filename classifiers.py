@@ -5,6 +5,7 @@ import configparser
 import logging
 import os
 from time import time
+
 from sklearn import metrics
 from sklearn.externals import joblib
 from sklearn.svm import LinearSVC
@@ -32,25 +33,12 @@ class TrafficClassifiers:
         self._config = config
         self.random_seed = int(self._config['offline']['randomSeed'])
         self.parameter_search_space = {
-            'LogRegr': {"C": [10, 100, 1000],
-                      #"tol": [0.00001,0.0001,0.001],
-                      #"max_features": sp_randint(1, 11),
-                      },
-                      #{'alpha': [0.1, 0.01, 0.001, 0.0001]},
+            'LogRegr': {"C": [10, 100, 1000]},
 
-            'SVM': {'estimator__C': [0.1, 1, 10],
-                    'estimator__loss': ['squared_hinge'],
-                      #'estimator__dual': [True, False]
-                    },
-                    #{ 'C': [0.1, 1, 10],
-                    #  'loss': ['squared_hinge'],
-                      #'estimator__dual': [True, False]
-                    #},
-                    #{'alpha': [0.1, 0.01, 0.001, 0.0001]},
-                    #[{'kernel': ['rbf'], 'gamma': [10,1,1e-2,1e-3,1e-4],
-                    #    'C': [ 1, 10, 100, 1000]},
-                    #{'kernel': ['linear'], 'C': [1, 10, 100, 1000]},
-                    #],
+            'SVM': {
+                'estimator__C': [0.1, 1, 10],
+                'estimator__loss': ['squared_hinge'],
+            },
 
             'DecTree': {"max_depth": [i for i in range(5, 20) if i % 3 == 0],
                         "max_features": [i for i in range(10, 40) if i % 10 == 0],
@@ -73,12 +61,8 @@ class TrafficClassifiers:
                                             solver='lbfgs',
                                             max_iter=200,
                                             n_jobs=-1),
-            #SGDClassifier(loss='log', n_jobs=-1, random_state=self.random_seed,tol=1e-4),
 
             'SVM':
-            #SGDClassifier(loss='hinge', n_jobs=-1, random_state=self.random_seed,tol=1e-4),
-            #LinearSVC(random_state=self.random_seed, tol=1e-4, dual=True),
-            #SVC(random_state=self.random_seed, cache_size=1000),
             OneVsOneClassifier(LinearSVC(random_state=self.random_seed, tol=1e-5), n_jobs=-1),
             'DecTree': DecisionTreeClassifier(random_state=self.random_seed),
             'RandomForest': RandomForestClassifier(random_state=self.random_seed),
@@ -169,6 +153,14 @@ def parse_args():
     return args
 
 
+def _get_overridden_bool_value(maybe_yes, maybe_no, config_default):
+    if maybe_yes:
+        return True
+    if maybe_no:
+        return False
+    return config_default
+
+
 def main():
     args = parse_args()
     config = configparser.ConfigParser()
@@ -178,38 +170,31 @@ def main():
     csv_filename = os.path.join(config['offline']['csv_folder'],
                                 config['parser']['csvFileTraining'])
 
-    minflows = int(config['parser']['minNumberOfFlowsPerApp'])
+    min_flows_per_app = int(config['parser']['minNumberOfFlowsPerApp'])
 
     data = read_csv(csv_filename)
-    csv_features, csv_targets = prepare_data(data, minflows=minflows)
+    csv_features, csv_targets = prepare_data(data, min_flows_per_app=min_flows_per_app)
 
     transformer = FeatureTransformer(config=config)
     classif = TrafficClassifiers(config=config)
 
-    if args.load_processors:
+    if _get_overridden_bool_value(args.load_processors,
+                                  args.fit_processors,
+                                  config['general'].get('useTrainedFeatureProcessors')):
         logger.info('Loading pretrained feature processors...')
         X_train, y_train, X_test, y_test = transformer.load_transform(csv_features, csv_targets)
-    elif args.fit_processors:
+    else:
         logger.info('Fitting new feature processors...')
         X_train, y_train, X_test, y_test = transformer.fit_transform(csv_features, csv_targets)
-    elif config['general'].get('useTrainedFeatureProcessors'):
-        logger.info('Loading pretrained feature processors (as specified in config)...')
-        X_train, y_train, X_test, y_test = transformer.load_transform(csv_features, csv_targets)
-    else:
-        logger.info('Fitting new feature processors (as specified in config)...')
-        X_train, y_train, X_test, y_test = transformer.fit_transform(csv_features, csv_targets)
 
-    if args.load_classifiers:
+
+    if _get_overridden_bool_value(args.load_classifiers,
+                                  args.fit_classifiers,
+                                  config['general'].get('useTrainedClassifiers')):
         logger.info('Loading pretrained classifiers...')
         classif.load()
-    elif args.fit_classifiers:
-        logger.info('Fitting new classifiers...')
-        classif.fit(X_train, y_train)
-    elif config['general'].get('useTrainedClasiffiers'):
-        logger.info('Loading pretrained classifiers (as specified in config)...')
-        classif.load()
     else:
-        logger.info('Fitting new classifiers (as specified in config)...')
+        logger.info('Fitting new classifiers...')
         classif.fit(X_train, y_train)
 
     predictions = classif.predict(X_test)
