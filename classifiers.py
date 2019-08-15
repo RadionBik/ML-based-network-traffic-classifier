@@ -41,22 +41,22 @@ class TrafficClassifiers:
             },
 
             'DecTree': {
-                "max_depth": [i for i in range(5, 20) if i % 3 == 0],
-                "max_features": [i for i in range(10, 40) if i % 10 == 0],
+                "max_depth": list(range(6, 20, 3)),
+                "max_features": list(range(10, 40, 10)),
                 "criterion": ["entropy"]
             },
             'RandomForest': {
-                "n_estimators": [i for i in range(10, 50) if i % 10 == 0],
-                "max_depth": [i for i in range(3, 16) if i % 3 == 0],
+                "n_estimators": list(range(10, 50, 10)),
+                "max_depth": list(range(3, 16, 3)),
                 "criterion": ["entropy"]
             },
             'GradBoost': {
                 "n_estimators": [50],
-                "max_depth": [i for i in range(2, 6)],
+                "max_depth": list(range(2, 6)),
                 "learning_rate": [0.01, 0.05, 0.1]
             },
             'MLP': {
-                "hidden_layer_sizes": [(i, i) for i in range(80, 121) if i % 40 == 0],
+                "hidden_layer_sizes": [(i, i) for i in range(80, 121, 40)],
                 "alpha": [0.0001, 0.001, 0.01]
             }
         }
