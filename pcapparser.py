@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE
 import typing
 import dpkt
 import pandas as pd
+import numpy as np
 
 
 logging.basicConfig(level='INFO')
@@ -50,6 +51,10 @@ def ip4_from_string(ip: str) -> bytes:
     :return: a 4-byte string
     """
     return bytes(map(int, ip.split('.')))
+
+
+def get_percentile(parameter, percentile):
+    return np.percentile(parameter, percentile) if len(parameter) > 0 else 0
 
 
 def _extract_rawflow_features(df: pd.DataFrame) -> dict:
@@ -107,48 +112,48 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'server_bulk_max': server_bulks.max(),
         'server_bulk_min': server_bulks.min(),
         'server_bulk_mean': server_bulks.mean(),
-        'server_bulk_median': server_bulks.quantile(.5),
-        'server_bulk_25q': server_bulks.quantile(.25),
-        'server_bulk_75q': server_bulks.quantile(.75),
+        'server_bulk_median': get_percentile(server_bulks, 50),
+        'server_bulk_25q': get_percentile(server_bulks, 25),
+        'server_bulk_75q': get_percentile(server_bulks, 75),
         'server_bulks_bytes': server_bulks.sum(),
         'server_bulks_number': len(server_bulks),
 
         'client_bulk_max': client_bulks.max(),
         'client_bulk_min': client_bulks.min(),
         'client_bulk_mean': client_bulks.mean(),
-        'client_bulk_median': client_bulks.quantile(.5),
-        'client_bulk_25q': client_bulks.quantile(.25),
-        'client_bulk_75q': client_bulks.quantile(.75),
+        'client_bulk_median': get_percentile(client_bulks, 50),
+        'client_bulk_25q': get_percentile(client_bulks, 25),
+        'client_bulk_75q': get_percentile(client_bulks, 75),
         'client_bulks_bytes': client_bulks.sum(),
         'client_bulks_number': len(client_bulks),
 
         'server_packet_max': server_packets.max(),
         'server_packet_min': server_packets.min(),
         'server_packet_mean': server_packets.mean(),
-        'server_packet_median': server_packets.quantile(.5),
-        'server_packet_25q': server_packets.quantile(.25),
-        'server_packet_75q': server_packets.quantile(.75),
+        'server_packet_median': get_percentile(server_packets, 50),
+        'server_packet_25q': get_percentile(server_packets, 25),
+        'server_packet_75q': get_percentile(server_packets, 75),
         'server_packets_bytes': server_packets.sum(),
         'server_packets_number': len(server_packets),
 
         'client_packet_max': client_packets.max(),
         'client_packet_min': client_packets.min(),
         'client_packet_mean': client_packets.mean(),
-        'client_packet_median': client_packets.quantile(.5),
-        'client_packet_25q': client_packets.quantile(.25),
-        'client_packet_75q': client_packets.quantile(.75),
+        'client_packet_median': get_percentile(client_packets, 50),
+        'client_packet_25q': get_percentile(client_packets, 25),
+        'client_packet_75q': get_percentile(client_packets, 75),
         'client_packets_bytes': client_packets.sum(),
         'client_packets_number': len(client_packets),
 
         'client_iat_mean': client_iats.mean(),
-        'client_iat_median': client_iats.quantile(.5),
-        'client_iat_25q': client_iats.quantile(.25),
-        'client_iat_75q': client_iats.quantile(.75),
+        'client_iat_median': get_percentile(client_iats, 50),
+        'client_iat_25q': get_percentile(client_iats, 25),
+        'client_iat_75q': get_percentile(client_iats, 75),
 
         'server_iat_mean': server_iats.mean(),
-        'server_iat_median': server_iats.quantile(.5),
-        'server_iat_25q': server_iats.quantile(.25),
-        'server_iat_75q': server_iats.quantile(.75),
+        'server_iat_median': get_percentile(server_iats, 50),
+        'server_iat_25q': get_percentile(server_iats, 25),
+        'server_iat_75q': get_percentile(server_iats, 75),
     }
 
     return stats
