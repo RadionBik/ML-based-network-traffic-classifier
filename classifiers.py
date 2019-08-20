@@ -21,11 +21,6 @@ from sklearn.linear_model import LogisticRegression
 import yaml
 
 
-class OneVsOneLinearSVC(OneVsOneClassifier):
-    def __init__(self, n_jobs=-1, **kwargs):
-        super().__init__(LinearSVC(**kwargs), n_jobs=n_jobs)
-
-
 class ClassierHolder:
     """ simple dataclass """
     def __init__(self, classifier, param_search_space):
@@ -46,7 +41,7 @@ def _read_settings() -> dict:
     return settings
 
 
-def _process_settings(settings: dict, random_seed: int) -> None:
+def _process_settings(settings: dict) -> None:
     """ In-place settings transform for ranges"""
     for key, params in settings.items():
         if 'search_space_params' in params:
@@ -55,16 +50,20 @@ def _process_settings(settings: dict, random_seed: int) -> None:
                 if isinstance(pvalue, dict) and 'from' in pvalue:
                     step = pvalue.get('step', 1)
                     ssp[pname] = list(range(pvalue['from'], pvalue['to'], step))
-        if 'params' not in params:
-            params['params'] = {}
-        params['params']['random_state'] = random_seed
 
 
-def _instantiate_holders(settings:dict) -> typing.Dict[str, ClassierHolder]:
+def _instantiate_holders(settings:dict, random_seed: int) -> typing.Dict[str, ClassierHolder]:
     result = {}
     for key, params in settings.items():
         kwargs = params.get('params', {})
+        if not params.get('norandom', False):
+            kwargs['random_state'] = random_seed
+
         logger.debug(f'Instantiating {params["type"]} with params {kwargs}')
+        if 'estimator' in kwargs:  # dirty hack
+            new_kwargs = {**kwargs['estimator']['params']}
+            new_kwargs['random_state'] = random_seed
+            kwargs['estimator'] = globals()[kwargs['estimator']['type']](**new_kwargs)
         classifier = globals()[params['type']](**kwargs)
         holder = ClassierHolder(classifier, params.get('param_search_space', {}))
         result[key] = holder
@@ -78,8 +77,8 @@ class ClassifierEnsemble:
         self.random_seed = int(self._config['offline']['randomSeed'])
 
         settings = _read_settings()
-        _process_settings(settings, random_seed=self.random_seed)
-        self.holders = _instantiate_holders(settings)
+        _process_settings(settings)
+        self.holders = _instantiate_holders(settings, random_seed=self.random_seed)
         self._suffix_for_optimized = '_opt'
         self._suffix = file_suffix or self._config['general']['fileSaverSuffix']
 
@@ -124,11 +123,12 @@ class ClassifierEnsemble:
     def fit(self, X, y):
         for classif_name, classif in self.enabled_classifiers:
             if self.optimized(classif_name):
-                logger.info('Searching parameters for {}...'.format(classif_name))
+                logger.info(f'Searching parameters for {classif_name}...')
                 opt_params = self._search_classif_parameters(classif_name, X, y)
                 self.holders[classif_name].classifier.set_params(**opt_params)
 
-            logger.info('Started fitting {}...'.format(classif_name))
+            logger.info(f'Started fitting {classif_name}...')
+
             self.holders[classif_name].classifier.fit(X, y)
             joblib.dump(self.holders[classif_name].classifier,
                         self.classif_filename(classif_name))
