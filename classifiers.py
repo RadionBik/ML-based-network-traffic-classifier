@@ -93,7 +93,7 @@ class ClassifierEnsemble:
         search = GridSearchCV(holder.classifier,
                               param_grid=holder.param_search_space,
                               n_jobs=-1,
-                              scoring=make_scorer(metrics.jaccard_score),
+                              scoring=make_scorer(metrics.jaccard_score, average='micro'),
                               cv=3)
 
         start = time()
