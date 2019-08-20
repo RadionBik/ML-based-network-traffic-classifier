@@ -150,7 +150,6 @@ def prepare_data(data, min_flows_per_app: int = 20):
     prepare_data() removes rare protocols and flows, splits DataFrame
     into target vector and feature matrix
     """
-
     data = _rename_protocols_inplace(data)
     data = _filter_apps(data, min_flows_per_app)
 

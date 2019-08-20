@@ -53,7 +53,6 @@ def main():
 
     data = read_csv(csv_filename)
     csv_features, csv_targets = prepare_data(data, min_flows_per_app=min_flows_per_app)
-
     transformer = FeatureTransformer(config=config)
     classif = ClassifierEnsemble(config=config)
 

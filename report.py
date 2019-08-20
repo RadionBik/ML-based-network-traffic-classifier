@@ -34,7 +34,7 @@ class ClassifierEvaluator:
         ax = scores_df.plot(kind='bar', rot=30, ylim=(0.8,1.0), grid=True).legend(bbox_to_anchor=(1.05, 1.0))
         fig = ax.get_figure()
         plt.tight_layout()
-        fig.savefig(self._config['report']['folderWithPlots']+os.sep\
+        fig.savefig(self._config['report']['folderWithPlots']+os.sep
                     +'scores'+self._suffix+'.pdf')
         #plt.show()
     
