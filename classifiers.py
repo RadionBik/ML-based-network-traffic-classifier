@@ -44,12 +44,12 @@ def _read_settings() -> dict:
 def _process_settings(settings: dict) -> None:
     """ In-place settings transform for ranges"""
     for key, params in settings.items():
-        if 'search_space_params' in params:
-            ssp = params.get('search_space_params')
+        if 'param_search_space' in params:
+            ssp = params.get('param_search_space')
             for pname, pvalue in ssp.items():
                 if isinstance(pvalue, dict) and 'from' in pvalue:
                     step = pvalue.get('step', 1)
-                    ssp[pname] = list(range(pvalue['from'], pvalue['to'], step))
+                    ssp[pname] = list(range(pvalue['from'], pvalue['till'], step))
 
 
 def _instantiate_holders(settings:dict, random_seed: int) -> typing.Dict[str, ClassierHolder]:
@@ -89,6 +89,7 @@ class ClassifierEnsemble:
                                                     stratify=y,
                                                     random_state=self.random_seed)
         holder = self.holders[classifier_name]
+        logger.info('Searching through %s', holder.param_search_space)
         search = GridSearchCV(holder.classifier,
                               param_grid=holder.param_search_space,
                               n_jobs=-1,
