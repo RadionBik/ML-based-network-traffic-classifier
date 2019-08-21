@@ -58,7 +58,7 @@ def main():
 
     if _get_overridden_bool_value(args.load_processors,
                                   args.fit_processors,
-                                  config['general'].get('useTrainedFeatureProcessors')):
+                                  config['general'].getboolean('useTrainedFeatureProcessors')):
         logger.info('Loading pretrained feature processors...')
         X_train, y_train, X_test, y_test = transformer.load_transform(csv_features, csv_targets)
     else:
@@ -67,7 +67,7 @@ def main():
 
     if _get_overridden_bool_value(args.load_classifiers,
                                   args.fit_classifiers,
-                                  config['general'].get('useTrainedClassifiers')):
+                                  config['general'].getboolean('useTrainedClassifiers')):
         logger.info('Loading pretrained classifiers...')
         classif.load()
     else:
