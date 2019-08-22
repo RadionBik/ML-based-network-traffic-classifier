@@ -1,0 +1,91 @@
+---
+LogRegr:
+    type: LogisticRegression
+    params:
+        multi_class: auto
+        solver: lbfgs
+        max_iter: 200
+        n_jobs: -1
+    param_search_space:
+        C: [10, 100, 1000]
+        # tol: [0.00001,0.0001,0.001],
+        # "max_features": sp_randint(1, 11)
+        # {'alpha': [0.1, 0.01, 0.001, 0.0001]},
+SVM:
+    type: OneVsOneClassifier #(LinearSVC(random_state=self.random_seed, tol=1e-5), n_jobs=-1),
+    norandom: true
+    params:
+        estimator:
+            type: LinearSVC
+            params:
+                tol: 1.0e-5
+        n_jobs: -1
+    param_search_space:
+        estimator__C: [0.1, 1, 10]
+        estimator__loss: ['squared_hinge']
+            # 'estimator__dual': [True, False]
+            # { 'C': [0.1, 1, 10]
+            #  'loss': ['squared_hinge'],
+            # 'estimator__dual': [True, False]
+            # },
+            # {'alpha': [0.1, 0.01, 0.001, 0.0001]},
+            # [{'kernel': ['rbf'], 'gamma': [10,1,1e-2,1e-3,1e-4],
+            #    'C': [ 1, 10, 100, 1000]},
+            # {'kernel': ['linear'], 'C': [1, 10, 100, 1000]},
+            # ],
+DecTree:
+    type: DecisionTreeClassifier
+    param_search_space:
+        max_depth:
+            from: 6
+            till: 20
+            step: 3
+        max_features:
+            from: 10
+            till: 40
+            step: 10
+        criterion:
+            - entropy
+RandomForest:
+    type: RandomForestClassifier
+    param_search_space:
+        n_estimators:
+            from: 10
+            till: 50
+            step: 10
+        max_depth:
+            from: 3
+            till: 10
+            step: 3
+        criterion:
+            - entropy
+
+GradBoost:
+    type: GradientBoostingClassifier
+    param_search_space:
+        n_estimators:
+            - 50
+        max_depth: [2,3,4,5]
+        learning_rate:
+            - 0.01
+            - 0.05
+            - 0.1
+
+MLP:
+    type: MLPClassifier
+    params:
+        max_iter: 300
+    param_search_space:
+        hidden_layer_sizes: 
+          - [80, 80]
+          - [120, 120]
+        alpha: 
+          - 0.0001
+          - 0.001
+          - 0.01
+
+# SGDClassifier(loss='log', n_jobs=-1, random_state=self.random_seed,tol=1e-4),
+# SGDClassifier(loss='hinge', n_jobs=-1, random_state=self.random_seed,tol=1e-4),
+# LinearSVC(random_state=self.random_seed, tol=1e-4, dual=True),
+# SVC(random_state=self.random_seed, cache_size=1000),
+

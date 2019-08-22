@@ -145,14 +145,13 @@ def read_csv(filename):
                        index_col=0)
 
 
-def prepare_data(data, minflows: int = 20):
+def prepare_data(data, min_flows_per_app: int = 20):
     """
     prepare_data() removes rare protocols and flows, splits DataFrame
     into target vector and feature matrix
     """
-
     data = _rename_protocols_inplace(data)
-    data = _filter_apps(data, minflows)
+    data = _filter_apps(data, min_flows_per_app)
 
     data.drop('subproto', axis=1, inplace=True)
     data.fillna(0, inplace=True)
