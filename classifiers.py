@@ -11,6 +11,7 @@ from sklearn.externals import joblib
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
+
 from sklearn.multiclass import OneVsOneClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
@@ -19,6 +20,18 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 
 import yaml
+
+REGISTERED_CLASSES = {
+    cls.__name__: cls for cls in [
+        MLPClassifier,
+        LinearSVC,
+        DecisionTreeClassifier,
+        RandomForestClassifier,
+        GradientBoostingClassifier,
+        LogisticRegression,
+        OneVsOneClassifier,
+    ]
+}
 
 
 class ClassierHolder:
@@ -33,10 +46,12 @@ logging.basicConfig(stream=sys.stdout,
                     format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
+ROOT = os.path.dirname(__file__)
 
-def _read_settings() -> dict:
+
+def read_classifier_settings() -> dict:
     """ simple wrapper around yaml.load """
-    with open('classifiers.yaml') as f:
+    with open(os.path.join(ROOT, 'classifiers.yaml')) as f:
         settings = yaml.load(f)
     return settings
 
@@ -52,7 +67,9 @@ def _process_settings(settings: dict) -> None:
                     ssp[pname] = list(range(pvalue['from'], pvalue['till'], step))
 
 
-def _instantiate_holders(settings:dict, random_seed: int) -> typing.Dict[str, ClassierHolder]:
+def _instantiate_holders(settings: dict,
+                         random_seed: int,
+                         classes: typing.Dict[str, type]) -> typing.Dict[str, ClassierHolder]:
     result = {}
     for key, params in settings.items():
         kwargs = params.get('params', {})
@@ -60,11 +77,11 @@ def _instantiate_holders(settings:dict, random_seed: int) -> typing.Dict[str, Cl
             kwargs['random_state'] = random_seed
 
         logger.debug(f'Instantiating {params["type"]} with params {kwargs}')
-        if 'estimator' in kwargs:  # dirty hack
+        if 'estimator' in kwargs:  # this works only on one level deeper. No recursion
             new_kwargs = {**kwargs['estimator']['params']}
             new_kwargs['random_state'] = random_seed
-            kwargs['estimator'] = globals()[kwargs['estimator']['type']](**new_kwargs)
-        classifier = globals()[params['type']](**kwargs)
+            kwargs['estimator'] = classes[kwargs['estimator']['type']](**new_kwargs)
+        classifier = classes[params['type']](**kwargs)
         holder = ClassierHolder(classifier, params.get('param_search_space', {}))
         result[key] = holder
 
@@ -72,13 +89,13 @@ def _instantiate_holders(settings:dict, random_seed: int) -> typing.Dict[str, Cl
 
 
 class ClassifierEnsemble:
-    def __init__(self, config, file_suffix=None):
+    def __init__(self, config,  classifier_settings, file_suffix=None):
         self._config = config
         self.random_seed = int(self._config['offline']['randomSeed'])
-
-        settings = _read_settings()
-        _process_settings(settings)
-        self.holders = _instantiate_holders(settings, random_seed=self.random_seed)
+        _process_settings(classifier_settings)
+        self.holders = _instantiate_holders(classifier_settings,
+                                            random_seed=self.random_seed,
+                                            classes=REGISTERED_CLASSES)
         self._suffix_for_optimized = '_opt'
         self._suffix = file_suffix or self._config['general']['fileSaverSuffix']
 

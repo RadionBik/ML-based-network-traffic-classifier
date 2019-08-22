@@ -1,14 +1,14 @@
 import argparse
 import configparser
+import logging
 import os
 
-from classifiers import logger, ClassifierEnsemble
-
-
+from classifiers import ClassifierEnsemble, read_classifier_settings
 from feature_processing import FeatureTransformer, read_csv, prepare_data
-
-
 from report import ClassifierEvaluator
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -54,7 +54,8 @@ def main():
     data = read_csv(csv_filename)
     csv_features, csv_targets = prepare_data(data, min_flows_per_app=min_flows_per_app)
     transformer = FeatureTransformer(config=config)
-    classif = ClassifierEnsemble(config=config)
+    classifier_settings = read_classifier_settings()
+    classif = ClassifierEnsemble(config=config, classifier_settings=classifier_settings)
 
     if _get_overridden_bool_value(args.load_processors,
                                   args.fit_processors,
