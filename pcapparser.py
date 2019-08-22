@@ -80,8 +80,11 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
     server_index = df[df['is_client'] == 0].index
     iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
     iat_server.index = server_index
-
-    df['IAT'] = pd.concat([iat_server, iat_client])
+    #intersection = set(server_index).intersection(set(client_index))
+    #if intersection:
+    #    print(intersection)
+    #    import pdb; pdb.set_trace()
+    df['IAT'] = pd.concat([iat_server, iat_client], ignore_index=True)
     server_iats = df[df['is_client'] == 0]['IAT']
     client_iats = df[df['is_client'] == 1]['IAT']
 
@@ -297,8 +300,8 @@ def _get_flows_features(raw_flows: dict) -> pd.DataFrame:
     logging.info('Started extracting features of packets...')
     for flow_counter, (connection, flow) in enumerate(raw_flows.items()):
         key = _format_connection(connection)
-        chronoligical_df = _raw_flow_to_df(flow)
-        flow_features = _extract_rawflow_features(chronoligical_df)
+        chronological_df = _raw_flow_to_df(flow)
+        flow_features = _extract_rawflow_features(chronological_df)
         flows[key] = flow_features
         if flow_counter % 100 == 0:
             logging.info(f'Processed {flow_counter} flows...')
