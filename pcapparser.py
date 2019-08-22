@@ -90,7 +90,6 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
     stats = {
         'proto': df['proto'].iloc[0],
-        'subproto': df['subproto'].iloc[0],
         'is_tcp': df['is_tcp'].iloc[0],
 
         'client_found_tcp_flags': sorted(set(df[df['is_client'] == 1]['tcp_flags'])),
@@ -176,7 +175,34 @@ PORT = r'(\d{1,5})'
 APPPROTO = r'\[proto: [\d+\.]*\d+\/(\w+\.?\w+)*\]'
 
 
-def _parse_ndpi_output(raw: str) -> dict:
+def _get_ndpi_protocol_mapping(ndpi_filename: str) -> dict:
+    pipe = Popen([ndpi_filename,
+                  '-h'],
+                 stdout=PIPE,
+                 universal_newlines=True)
+    stdout, stderr = pipe.communicate()
+    protocol_mapping = dict()
+    for line in stdout.split('\n'):
+        if line.startswith('['):
+            number_part, protocol_part = line.split(']')
+            number = int(number_part.split('[')[1].strip())
+            protocol = protocol_part.strip()
+            protocol_mapping.update({number: protocol})
+            protocol_mapping.update({protocol: number})
+
+    return protocol_mapping
+
+
+def _get_ndpi_output(ndpi_filename: str, pcap_filename: str) -> str:
+    pipe = Popen([ndpi_filename,
+                  '-i', pcap_filename, "-v2"],
+                 stdout=PIPE,
+                 universal_newlines=True)
+    stdout, stderr = pipe.communicate()
+    return stdout
+
+
+def _parse_ndpi_output(raw: str, protocol_map: dict) -> dict:
     regex = f'{PROTOCOL} {IP4}:{PORT} <?->? {IP4}:{PORT} {APPPROTO}'
     reg = re.compile(regex)
 
@@ -188,17 +214,8 @@ def _parse_ndpi_output(raw: str) -> dict:
         port2 = int(port2)
         connection = Connection(transp_proto.lower(),
                                 frozenset([Endpoint(ip1, port1), Endpoint(ip2, port2)]))
-        apps[connection] = app_proto
+        apps[connection] = protocol_map[app_proto.split('.')[0]]
     return apps
-
-
-def _get_ndpi_output(ndpi_filename: str, pcap_filename: str) -> str:
-    pipe = Popen([ndpi_filename,
-                  '-i', pcap_filename, "-v2"],
-                 stdout=PIPE,
-                 universal_newlines=True)
-    stdout, stderr = pipe.communicate()
-    return stdout
 
 
 def _filter_packets(source):
@@ -241,14 +258,13 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             if max_packets_per_flow and len(flow) > max_packets_per_flow:
                 continue
 
-            app = apps[connection].split('.')
+            app = apps[connection]
 
             packet = {
                 'TS': timestamp,
                 'ip_payload': len(ip.data),
                 'transp_payload': len(seg.data),
-                'proto': app[0],
-                'subproto': app[1] if len(app) > 1 else '',
+                'proto': app,
                 'tcp_flags': seg.flags if transp_proto == 'tcp' else 0,
                 'tcp_win': seg.win if transp_proto == 'tcp' else 0,
                 'is_tcp': transp_proto == 'tcp',
@@ -269,7 +285,8 @@ def _format_connection(connection: Connection) -> str:
 def _get_labeled_flows(ndpi_filename, traffic_filename, max_packets_per_flow=None):
     logging.info('Started extracting ground truth labels for flows...')
     output = _get_ndpi_output(ndpi_filename, traffic_filename)
-    apps = _parse_ndpi_output(output)
+    protocol_map = _get_ndpi_protocol_mapping(ndpi_filename)
+    apps = _parse_ndpi_output(output, protocol_map)
     logging.info('Got {} unique flows!'.format(len(apps)))
     raw_flows = _get_raw_flows(apps, traffic_filename, max_packets_per_flow=max_packets_per_flow)
     return raw_flows
@@ -325,6 +342,8 @@ def main():
                 pure_filename)
         )
         logging.info('Saving features to {}...'.format(csv_output_filename))
+        protocol_mapping = _get_ndpi_protocol_mapping(config['parser']['nDPIfilename'])
+        features['proto'] = features['proto'].apply(lambda proto: protocol_mapping[proto])
         features.to_csv(csv_output_filename, index=True, sep='|', na_rep=0, columns=sorted(features.columns))
 
 
