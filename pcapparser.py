@@ -162,7 +162,8 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
 
 def _raw_flow_to_df(flow):
-    df = pd.DataFrame(flow)
+    df = pd.DataFrame(flow, columns=['TS', 'ip_payload', 'transp_payload', 'tcp_flags',
+                                     'tcp_win', 'is_tcp', 'is_client', 'proto'])
     df.set_index(pd.to_datetime(df['TS'], unit='s'), inplace=True)
     return df.drop(['TS'], axis=1)
 
@@ -235,9 +236,10 @@ def _filter_packets(source):
 def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optional[int] = None) -> dict:
     """ transform packets to flows for each app """
     flows = dict.fromkeys(apps)
+    packet_counter = dict.fromkeys(apps)
     client_tuple = dict.fromkeys(apps.keys())
     with open(filename, "rb") as pcap_file:
-        for timestamp, ip, seg in _filter_packets(dpkt.pcap.Reader(pcap_file)):
+        for pkt_number, (timestamp, ip, seg) in enumerate(_filter_packets(dpkt.pcap.Reader(pcap_file))):
             if isinstance(seg, dpkt.tcp.TCP):
                 transp_proto = "tcp"
             elif isinstance(seg, dpkt.udp.UDP):
@@ -253,28 +255,26 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             # if client tuple is empty, then no packets from the flow has been seen so far
             if not client_tuple[connection]:
                 client_tuple[connection] = source
-                flows[connection] = []
+                flows[connection] = np.zeros((max_packets_per_flow, 8))
+                packet_counter[connection] = 0
 
             assert client_tuple[connection] in (source, destination)
 
-            flow = flows[connection]
-            if max_packets_per_flow and len(flow) > max_packets_per_flow:
+            if max_packets_per_flow and packet_counter[connection] >= max_packets_per_flow:
                 continue
 
-            app = apps[connection]
+            # 'TS', 'ip_payload', 'transp_payload', 'tcp_flags', 'tcp_win', 'is_tcp', 'is_client', 'proto'
+            flows[connection][packet_counter[connection], 0] = timestamp
+            flows[connection][packet_counter[connection], 1] = len(ip.data)
+            flows[connection][packet_counter[connection], 2] = len(seg.data)
+            flows[connection][packet_counter[connection], 3] = seg.flags if transp_proto == 'tcp' else 0
+            flows[connection][packet_counter[connection], 4] = seg.win if transp_proto == 'tcp' else 0
+            flows[connection][packet_counter[connection], 5] = transp_proto == 'tcp'
+            flows[connection][packet_counter[connection], 6] = client_tuple[connection] == source
+            flows[connection][packet_counter[connection], 7] = apps[connection]
 
-            packet = {
-                'TS': timestamp,
-                'ip_payload': len(ip.data),
-                'transp_payload': len(seg.data),
-                'proto': app,
-                'tcp_flags': seg.flags if transp_proto == 'tcp' else 0,
-                'tcp_win': seg.win if transp_proto == 'tcp' else 0,
-                'is_tcp': transp_proto == 'tcp',
-                'is_client': client_tuple[connection] == source
-            }
+            packet_counter[connection] += 1
 
-            flows[connection].append(packet)
     return flows
 
 
