@@ -59,34 +59,28 @@ def get_percentile(parameter, percentile):
 
 def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
-    client_bulks = df[(df['transp_payload'] > 0) &
-                      (df['is_client'] == 1)
-                      ]['transp_payload']
+    client_indexes = df['is_client'] == 1
+    server_indexes = df['is_client'] == 0
 
-    server_bulks = df[(df['transp_payload'] > 0) &
-                      (df['is_client'] == 0)
-                      ]['transp_payload']
+    client_bulks = df[(df['transp_payload'] > 0) & client_indexes]['transp_payload']
 
-    client_packets = df[df['is_client'] == 1
-                        ]['ip_payload']
+    server_bulks = df[(df['transp_payload'] > 0) & server_indexes]['transp_payload']
 
-    server_packets = df[df['is_client'] == 0
-                        ]['ip_payload']
+    client_packets = df[client_indexes]['ip_payload']
 
-    client_index = df[df['is_client'] == 1].index
-    iat_client = pd.to_timedelta(pd.Series(client_index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_client.index = client_index
+    server_packets = df[server_indexes]['ip_payload']
 
-    server_index = df[df['is_client'] == 0].index
-    iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_server.index = server_index
-    #intersection = set(server_index).intersection(set(client_index))
-    #if intersection:
-    #    print(intersection)
-    #    import pdb; pdb.set_trace()
+    client_ts = df[client_indexes].index
+    iat_client = pd.to_timedelta(pd.Series(client_ts).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_client.index = client_ts
+
+    server_ts = df[server_indexes].index
+    iat_server = pd.to_timedelta(pd.Series(server_ts).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_server.index = server_ts
+
     df['IAT'] = pd.concat([iat_server, iat_client], ignore_index=True)
-    server_iats = df[df['is_client'] == 0]['IAT']
-    client_iats = df[df['is_client'] == 1]['IAT']
+    server_iats = df[server_indexes]['IAT']
+    client_iats = df[client_indexes]['IAT']
 
     fault_avoider = (
         lambda values, index=0: values.iloc[index] if len(values) > index else 0)
@@ -95,11 +89,11 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'proto': df['proto'].iloc[0],
         'is_tcp': df['is_tcp'].iloc[0],
 
-        'client_found_tcp_flags': sorted(set(df[df['is_client'] == 1]['tcp_flags'])),
-        'server_found_tcp_flags': sorted(set(df[df['is_client'] == 0]['tcp_flags'])),
+        'client_found_tcp_flags': sorted(set(df[client_indexes]['tcp_flags'])),
+        'server_found_tcp_flags': sorted(set(df[server_indexes]['tcp_flags'])),
 
-        'client_tcp_window_mean': df[df['is_client'] == 1]['tcp_win'].mean(),
-        'server_tcp_window_mean': df[df['is_client'] == 0]['tcp_win'].mean(),
+        'client_tcp_window_mean': df[client_indexes]['tcp_win'].mean(),
+        'server_tcp_window_mean': df[server_indexes]['tcp_win'].mean(),
 
         'client_bulk0': fault_avoider(client_bulks, 0),
         'client_bulk1': fault_avoider(client_bulks, 1),
