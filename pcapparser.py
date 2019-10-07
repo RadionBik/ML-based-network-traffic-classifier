@@ -59,34 +59,28 @@ def get_percentile(parameter, percentile):
 
 def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
-    client_bulks = df[(df['transp_payload'] > 0) &
-                      (df['is_client'] == 1)
-                      ]['transp_payload']
+    client_indexes = df['is_client'] == 1
+    server_indexes = df['is_client'] == 0
 
-    server_bulks = df[(df['transp_payload'] > 0) &
-                      (df['is_client'] == 0)
-                      ]['transp_payload']
+    client_bulks = df[(df['transp_payload'] > 0) & client_indexes]['transp_payload']
 
-    client_packets = df[df['is_client'] == 1
-                        ]['ip_payload']
+    server_bulks = df[(df['transp_payload'] > 0) & server_indexes]['transp_payload']
 
-    server_packets = df[df['is_client'] == 0
-                        ]['ip_payload']
+    client_packets = df[client_indexes]['ip_payload']
 
-    client_index = df[df['is_client'] == 1].index
-    iat_client = pd.to_timedelta(pd.Series(client_index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_client.index = client_index
+    server_packets = df[server_indexes]['ip_payload']
 
-    server_index = df[df['is_client'] == 0].index
-    iat_server = pd.to_timedelta(pd.Series(server_index).diff().fillna('0')) / pd.offsets.Second(1)
-    iat_server.index = server_index
-    #intersection = set(server_index).intersection(set(client_index))
-    #if intersection:
-    #    print(intersection)
-    #    import pdb; pdb.set_trace()
+    client_ts = df[client_indexes].index
+    iat_client = pd.to_timedelta(pd.Series(client_ts).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_client.index = client_ts
+
+    server_ts = df[server_indexes].index
+    iat_server = pd.to_timedelta(pd.Series(server_ts).diff().fillna('0')) / pd.offsets.Second(1)
+    iat_server.index = server_ts
+
     df['IAT'] = pd.concat([iat_server, iat_client], ignore_index=True)
-    server_iats = df[df['is_client'] == 0]['IAT']
-    client_iats = df[df['is_client'] == 1]['IAT']
+    server_iats = df[server_indexes]['IAT']
+    client_iats = df[client_indexes]['IAT']
 
     fault_avoider = (
         lambda values, index=0: values.iloc[index] if len(values) > index else 0)
@@ -95,11 +89,11 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
         'proto': df['proto'].iloc[0],
         'is_tcp': df['is_tcp'].iloc[0],
 
-        'client_found_tcp_flags': sorted(set(df[df['is_client'] == 1]['tcp_flags'])),
-        'server_found_tcp_flags': sorted(set(df[df['is_client'] == 0]['tcp_flags'])),
+        'client_found_tcp_flags': sorted(set(df[client_indexes]['tcp_flags'])),
+        'server_found_tcp_flags': sorted(set(df[server_indexes]['tcp_flags'])),
 
-        'client_tcp_window_mean': df[df['is_client'] == 1]['tcp_win'].mean(),
-        'server_tcp_window_mean': df[df['is_client'] == 0]['tcp_win'].mean(),
+        'client_tcp_window_mean': df[client_indexes]['tcp_win'].mean(),
+        'server_tcp_window_mean': df[server_indexes]['tcp_win'].mean(),
 
         'client_bulk0': fault_avoider(client_bulks, 0),
         'client_bulk1': fault_avoider(client_bulks, 1),
@@ -162,7 +156,8 @@ def _extract_rawflow_features(df: pd.DataFrame) -> dict:
 
 
 def _raw_flow_to_df(flow):
-    df = pd.DataFrame(flow)
+    df = pd.DataFrame(flow, columns=['TS', 'ip_payload', 'transp_payload', 'tcp_flags',
+                                     'tcp_win', 'is_tcp', 'is_client', 'proto'])
     df.set_index(pd.to_datetime(df['TS'], unit='s'), inplace=True)
     return df.drop(['TS'], axis=1)
 
@@ -235,9 +230,10 @@ def _filter_packets(source):
 def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optional[int] = None) -> dict:
     """ transform packets to flows for each app """
     flows = dict.fromkeys(apps)
+    packet_counter = dict.fromkeys(apps)
     client_tuple = dict.fromkeys(apps.keys())
     with open(filename, "rb") as pcap_file:
-        for timestamp, ip, seg in _filter_packets(dpkt.pcap.Reader(pcap_file)):
+        for pkt_number, (timestamp, ip, seg) in enumerate(_filter_packets(dpkt.pcap.Reader(pcap_file))):
             if isinstance(seg, dpkt.tcp.TCP):
                 transp_proto = "tcp"
             elif isinstance(seg, dpkt.udp.UDP):
@@ -253,28 +249,26 @@ def _get_raw_flows(apps: dict, filename: str, max_packets_per_flow: typing.Optio
             # if client tuple is empty, then no packets from the flow has been seen so far
             if not client_tuple[connection]:
                 client_tuple[connection] = source
-                flows[connection] = []
+                flows[connection] = np.zeros((max_packets_per_flow, 8))
+                packet_counter[connection] = 0
 
             assert client_tuple[connection] in (source, destination)
 
-            flow = flows[connection]
-            if max_packets_per_flow and len(flow) > max_packets_per_flow:
+            if max_packets_per_flow and packet_counter[connection] >= max_packets_per_flow:
                 continue
 
-            app = apps[connection]
+            # 'TS', 'ip_payload', 'transp_payload', 'tcp_flags', 'tcp_win', 'is_tcp', 'is_client', 'proto'
+            flows[connection][packet_counter[connection], 0] = timestamp
+            flows[connection][packet_counter[connection], 1] = len(ip.data)
+            flows[connection][packet_counter[connection], 2] = len(seg.data)
+            flows[connection][packet_counter[connection], 3] = seg.flags if transp_proto == 'tcp' else 0
+            flows[connection][packet_counter[connection], 4] = seg.win if transp_proto == 'tcp' else 0
+            flows[connection][packet_counter[connection], 5] = transp_proto == 'tcp'
+            flows[connection][packet_counter[connection], 6] = client_tuple[connection] == source
+            flows[connection][packet_counter[connection], 7] = apps[connection]
 
-            packet = {
-                'TS': timestamp,
-                'ip_payload': len(ip.data),
-                'transp_payload': len(seg.data),
-                'proto': app,
-                'tcp_flags': seg.flags if transp_proto == 'tcp' else 0,
-                'tcp_win': seg.win if transp_proto == 'tcp' else 0,
-                'is_tcp': transp_proto == 'tcp',
-                'is_client': client_tuple[connection] == source
-            }
+            packet_counter[connection] += 1
 
-            flows[connection].append(packet)
     return flows
 
 
