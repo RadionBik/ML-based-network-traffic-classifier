@@ -34,7 +34,7 @@ REGISTERED_CLASSES = {
 }
 
 
-class ClassierHolder:
+class ClassifierHolder:
     """ simple dataclass """
     def __init__(self, classifier, param_search_space):
         self.classifier = classifier
@@ -69,7 +69,7 @@ def _process_settings(settings: dict) -> None:
 
 def _instantiate_holders(settings: dict,
                          random_seed: int,
-                         classes: typing.Dict[str, type]) -> typing.Dict[str, ClassierHolder]:
+                         classes: typing.Dict[str, type]) -> typing.Dict[str, ClassifierHolder]:
     result = {}
     for key, params in settings.items():
         kwargs = params.get('params', {})
@@ -82,7 +82,7 @@ def _instantiate_holders(settings: dict,
             new_kwargs['random_state'] = random_seed
             kwargs['estimator'] = classes[kwargs['estimator']['type']](**new_kwargs)
         classifier = classes[params['type']](**kwargs)
-        holder = ClassierHolder(classifier, params.get('param_search_space', {}))
+        holder = ClassifierHolder(classifier, params.get('param_search_space', {}))
         result[key] = holder
 
     return result
