@@ -1,6 +1,7 @@
 # Network traffic classifier based on statistical properties of application flows
 
 UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features! 
+UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 
 ## Key features
 
@@ -16,7 +17,7 @@ UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features!
 
 ## Project structure
 
-* `pcap_parser.py` can be run as a standalone program that converts a PCAP-file into a .csv file with features and labels (obtained from `nDPI`). WARNING: the processing is slow and takes x2 RAM of a `.pcap` size. The plan is to replace it with the functionality of nDPI v3.*
+* `flow_parser.py` converts collected PCAP-files into a .csv file with features and labels (obtained from `NFStream`).
 
 * `feature_processing.py` contains loaders for parsed .csv files, with automatic cleaning up of `.csv` files, e.g. remove seldom flows, etc.
 
@@ -26,22 +27,20 @@ UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features!
 
 * `traffic_classifier.py` runs the ML pipeline when a .csv is present.
 
-* `bin/` contains binaries of the `nDPI v.2.9.*` library compiled for Ubuntu 16.04 and recent Manjaro (as of start of 2019).
-
 * `pcap_files/` includes an example .pcap that is analyzed by the program modules by default.
 
 * `trained_classifiers/` folder is used for storage of trained classifier that can be used later for validations on different traffic or in the live mode.
 
-* `csv_files/` stores outputs of `pcapparser.py` .
+* `csv_files/` stores outputs of `flow_parser.py` .
 
 * `figures/` this is where the output from the ClassifierEvaluator class is produced.  
 
 ## Module interfaces
-### pcapparser.py
+### flow_parser.py
 
-`pcapparser.py -p [--pcapfiles ...] -c [--config]`
+`flow_parser.py -p [--pcapfiles ...] -o [--output]`
 * **-p --pcapfiles** - one or more PCAP-files to process
-* **-c --config** - the configuration file to use
+* **-o --output** - .csv file target to store the parsing results 
 
 ### traffic_classifier.py
 
@@ -58,4 +57,4 @@ UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features!
 
 Make a copy of the `config.example.ini` to experiment with. If the config file during a module's start is not provided, `config.ini` is looked over by default.
 
-A feature file has to be prepared before running model training, so make sure a .csv is already present by running `pcapparser.py`.   
+A feature file has to be prepared before running model training, so make sure a .csv is already present by running `flow_parser.py`.   

@@ -1,10 +1,11 @@
+import os
+
 import numpy as np
+import pandas as pd
 from sklearn.externals import joblib
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
-import os
-import pandas as pd
 
 
 class TransformNotFound(FileNotFoundError):
