@@ -1,6 +1,7 @@
 # Network traffic classifier based on statistical properties of application flows
 
 UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features! 
+
 UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 
 ## Key features
