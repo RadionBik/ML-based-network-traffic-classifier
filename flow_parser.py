@@ -23,7 +23,6 @@ class RawFeatureMatrixIndexes:
 
 
 RMI = RawFeatureMatrixIndexes
-IP_PROTO_MAPPING = settings.IP_PROTO_MAPPING
 
 
 FEATURE_NAMES = [
@@ -133,7 +132,7 @@ def flow_processor(source):
                                    enable_guess=True)
     for flow_number, entry in enumerate(streamer):
         label_features = {
-            'flow_id': f'{IP_PROTO_MAPPING[entry.protocol]} '
+            'flow_id': f'{settings.IP_PROTO_MAPPING[entry.protocol]} '
                        f'{entry.src_ip}:{entry.src_port} '
                        f'{entry.dst_ip}:{entry.dst_port}',
             'ndpi_app': entry.application_name,
@@ -142,7 +141,7 @@ def flow_processor(source):
             'ndpi_server_info': entry.server_info,
             'ndpi_j3ac': entry.j3a_client,
             'ndpi_j3as': entry.j3a_server,
-            'ip_proto': IP_PROTO_MAPPING[entry.protocol],
+            'ip_proto': settings.IP_PROTO_MAPPING[entry.protocol],
         }
         flow_features = calc_flow_features(entry.raw_packets_matrix)
 
