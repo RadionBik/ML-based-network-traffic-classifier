@@ -14,6 +14,7 @@ trained_classifiers/*.*
 #old code
 py/
 .idea
+.directory
 
 #results
 *.txt
@@ -26,5 +27,5 @@ venv
 config.ini
 csv_files
 bin
-pcap_files/*
+*.pcap
 !pcap_files/example.pcap
