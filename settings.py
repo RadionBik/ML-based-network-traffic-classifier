@@ -22,5 +22,6 @@ config = configparser.ConfigParser()
 config.read(BASE_DIR / 'config.ini')
 
 PACKET_LIMIT_PER_FLOW = int(config['parser']['packetLimitPerFlow'])
+LOWER_CLASS_OCCURRENCE_BOUND = 50
 
 IP_PROTO_MAPPING = _read_protocol_mapping()
