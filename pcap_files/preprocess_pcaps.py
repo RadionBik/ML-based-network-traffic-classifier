@@ -45,11 +45,10 @@ IOT_DEVICES = [
 ]
 
 
-TCPDUMP_BASE_FILTER = 'not arp and not icmp and not icmp6 and not broadcast and not multicast'
+TCPDUMP_BASE_FILTER = 'not arp and not icmp and not icmp6 and not broadcast and not multicast and not net 127.0.0.0/8'
 
 
 def _merge_pcaps(pcaps_to_merge: list, to_file):
-    # merge all .pcap files from https://iotanalytics.unsw.edu.au/iottraces
     exec = sh.Command('mergecap')
     exec('-w', to_file, '-Fpcap', *pcaps_to_merge)
 
@@ -73,12 +72,13 @@ def _filter_non_iot_dump(source_pcap):
 
 
 def main():
-    DUMP_ROOT_DIR = pathlib.Path.home() / 'Applications/traffic_dumps'
-    merged_pcap = DUMP_ROOT_DIR / 'total.pcap'
-    pcaps = pathlib.Path(DUMP_ROOT_DIR / 'downloaded').glob('*.pcap')
-    _merge_pcaps(pcaps, merged_pcap)
+    dump_root_dir = pathlib.Path.home() / 'Applications/traffic_dumps'
+    merged_pcap = dump_root_dir / 'total.pcap'
+    # merge all .pcap files from https://iotanalytics.unsw.edu.au/iottraces
+    pcaps = pathlib.Path(dump_root_dir / 'downloaded').glob('*.pcap')
+    # _merge_pcaps(pcaps, merged_pcap)
     _split_by_devices(merged_pcap)
-    _filter_non_iot_dump(DUMP_ROOT_DIR / 'home.pcap')
+    _filter_non_iot_dump(dump_root_dir / 'home.pcap')
 
 
 if __name__ == '__main__':
