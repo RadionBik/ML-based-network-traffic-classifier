@@ -1,11 +1,18 @@
-import os
+import logging
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.externals import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
+
+import flow_parser
+from datasets import TARGET_CLASS_COLUMN
+
+logger = logging.getLogger(__name__)
+
+RANDOM_SEED = 1
 
 
 class TransformNotFound(FileNotFoundError):
@@ -15,146 +22,72 @@ class TransformNotFound(FileNotFoundError):
         ))
 
 
-class FeatureTransformer:
+class Featurizer:
     """
-    fit_transform() processes raw targets and features pandas objects,
-    learning new labels and scalers and one-hot encoding selected
-    ones.
-
-    IMPORTANT: USE load_transform() if you want to use
-    TRAINED classifiers
-
-    returns X_train, y_train, X_test, y_test
+    Featurizer processes raw features from a pandas object by merging results from scalers and one-hot encoders
+    and encodes target labels
     """
 
-    def __init__(self, config, categ_features=None, file_suffix=None, feature_flags=None):
+    def __init__(self,
+                 cont_features=None,
+                 categorical_features=None,
+                 consider_tcp_flags=True,
+                 consider_j3a=True,
+                 target_column=TARGET_CLASS_COLUMN):
 
-        self._config = config
-        self.le = LabelEncoder()
-        self.scaler = MinMaxScaler()
-        self.one_hot = OneHotEncoder()
-    
-        if file_suffix:
-            self._suffix = file_suffix
-        else:
-            self._suffix = self._config['general']['fileSaverSuffix']
+        self.target_encoder = LabelEncoder()
+        self.target_column = target_column
 
-        self.random_seed = int(self._config['offline']['randomSeed'])
+        self.categorical_features = ['ip_proto'] if not categorical_features else categorical_features
+        self.cont_features = self._get_cont_features() if not cont_features else cont_features
+        self.consider_tcp_flags = consider_tcp_flags
+        self.consider_j3a = consider_j3a
 
-        self._folder_pref = self._config['general']['classifiers_folder']+os.sep
-        self._one_hot_file = self._folder_pref+'one_hot'+self._suffix+'.dat'
-        self._scaler_file = self._folder_pref+'scaler'+self._suffix+'.dat'
-        self._le_file = self._folder_pref+'le'+self._suffix+'.dat'
-        if not categ_features:
-            self.categ_features = ['client_found_tcp_flags', 'server_found_tcp_flags']
-        else:
-            self.categ_features = categ_features
-        self._split = float(self._config['offline']['splitRatio'])
-        if feature_flags:
-            self.consider_iat = feature_flags[0]
-            self.consider_tcp_flags = feature_flags[1]
-        else:
-            self.consider_iat = self._config['parser'].getboolean('considerIAT')
-            self.consider_tcp_flags = self._config['parser'].getboolean('considerTCPflags')
-
-    def _fit_transform_scale_and_labels(self, X, y):
-        X_scaled = self.scaler.fit_transform(X)
-        y_labeled = self.le.fit_transform(y)
-        joblib.dump(self.scaler, self._scaler_file)
-        joblib.dump(self.le, self._le_file)
-        return X_scaled, y_labeled
-
-    def _load_transform_scale_and_labels(self, X, y):
-        self.scaler = joblib.load(self._scaler_file)
-        self.le = joblib.load(self._le_file)
-
-        X_scaled = self.scaler.transform(X)
-        y_labeled = self.le.transform(y)
-
-        return X_scaled, y_labeled
-
-    def _transform_scale_and_labels(self, X, y):
-        return self.scaler.transform(X), self.le.transform(y)
-
-    def _fit_transform_one_hot(self, features) -> tuple:
-        selected = features[self.categ_features]
-        one_hot = self.one_hot.fit_transform(selected).toarray()
-        joblib.dump(self.one_hot, self._one_hot_file)
-        return one_hot, features.drop(self.categ_features, axis=1)
-
-    def _load_transform_one_hot(self, features) -> tuple:
-        try:
-            self.one_hot = joblib.load(self._one_hot_file)
-        except FileNotFoundError as exc:
-            raise TransformNotFound(self._one_hot_file) from exc
-        selected = features[self.categ_features]
-        one_hot = self.one_hot.transform(selected).toarray()
-        return one_hot, features.drop(self.categ_features, axis=1)
-
-    def _split_and_label_features(self, one_hot_features, features, targets):
-        if not self.consider_iat:
-            features = features.drop(list(features.filter(regex='iat')), axis=1)
-
-        F_tr, F_test, X_oh_tr, X_oh_test, t_tr, t_test = train_test_split(features,
-                                                                          one_hot_features,
-                                                                          targets,
-                                                                          shuffle=True,
-                                                                          test_size=self._split,
-                                                                          stratify=targets,
-                                                                          random_state=self.random_seed)
-
-        X_tr, y_tr = self._fit_transform_scale_and_labels(F_tr, t_tr)
-        X_test, y_test = self._transform_scale_and_labels(F_test, t_test)
+        feature_set = [
+            ("scaler", StandardScaler(), self.cont_features),
+            ("one_hot", OneHotEncoder(handle_unknown='ignore', sparse=False), self.categorical_features),
+        ]
+        if self.consider_j3a:
+            feature_set.append(("one_hot_j3a",
+                                OneHotEncoder(handle_unknown='ignore', sparse=False),
+                                ['ndpi_j3ac', 'ndpi_j3as']))
 
         if self.consider_tcp_flags:
-            return np.hstack([X_tr, X_oh_tr]), y_tr, np.hstack([X_test, X_oh_test]), y_test
-        else:
-            return X_tr, y_tr, X_test, y_test
+            feature_set.append(("one_hot_tcp_flags",
+                                OneHotEncoder(handle_unknown='ignore', sparse=False),
+                                ['client_found_tcp_flags', 'server_found_tcp_flags']))
 
-    def fit_transform(self, features, targets):
-        one_hot_features, features = self._fit_transform_one_hot(features)
-        return self._split_and_label_features(one_hot_features, features, targets)
+        self.transformer = ColumnTransformer(feature_set)
 
-    def load_transform(self, features, targets):
-        one_hot_features, features = self._load_transform_one_hot(features)
-        return self._split_and_label_features(one_hot_features, features, targets)
+    @staticmethod
+    def _get_cont_features():
+        # here we expect features to be consistent with flow_parser's
+        base_features = [feat for feat in flow_parser.FEATURE_NAMES
+                         if 'bulk' in feat or 'packet' in feat]
+        cont_features = []
+        for prefix in [flow_parser.FEATURE_PREFIX.client, flow_parser.FEATURE_PREFIX.server]:
+            for feature in base_features:
+                cont_features.append(prefix+feature)
+        return cont_features
 
+    def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
+        X_train = self.transformer.fit_transform(data)
+        self.target_encoder.fit(data[self.target_column])
+        return X_train
 
-def _rename_protocols_inplace(flow_features):
-    #  TODO: make a non-modifying version
-    flow_features.replace('SSL_No_Cert', 'SSL', inplace=True)
-    flow_features.replace('Unencrypted_Jabber', 'Jabber', inplace=True)
-    flow_features.replace('Viber', 'DNS', inplace=True)
-    return flow_features
+    def fit_transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        X_train = self.transformer.fit_transform(data)
+        y_train = self.target_encoder.fit_transform(data[self.target_column])
+        return X_train, y_train
 
+    def transform(self, data: pd.DataFrame) -> np.ndarray:
+        X_test = self.transformer.transform(data)
+        return X_test
 
-def _filter_apps(flow_features, minflows):
-    found_apps = flow_features.proto.value_counts()
-    print('found apps:', found_apps)
-    good_apps = [app_index for app_index, flow_count in
-                 zip(found_apps.index, found_apps)
-                 if flow_count >= minflows]
+    def transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        X_test = self.transformer.transform(data)
+        y_test = self.target_encoder.transform(data[self.target_column])
+        return X_test, y_test
 
-    flow_features = flow_features[flow_features['proto'].map(lambda x: x in good_apps)]
-    return flow_features
-
-
-def read_csv(filename):
-    """ a simple wrapper for pandas """
-    return pd.read_csv(filename,
-                       sep='|',
-                       index_col=0)
-
-
-def prepare_data(data, min_flows_per_app: int = 20):
-    """
-    prepare_data() removes rare protocols and flows, splits DataFrame
-    into target vector and feature matrix
-    """
-    data = _rename_protocols_inplace(data)
-    data = _filter_apps(data, min_flows_per_app)
-
-    data.drop('subproto', axis=1, inplace=True)
-    data.fillna(0, inplace=True)
-    features, protocols = data.drop('proto', axis=1), data['proto']
-    return features, protocols
+    def encode(self, data: pd.DataFrame) -> np.ndarray:
+        return self.target_encoder.transform(data[self.target_column])
