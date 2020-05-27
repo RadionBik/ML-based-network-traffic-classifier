@@ -33,6 +33,11 @@ FEATURE_NAMES = [
 ]
 
 
+class FEATURE_PREFIX:
+    client = 'client_'
+    server = 'server_'
+
+
 @functools.lru_cache(maxsize=2)
 def _create_empty_features(prefix: str) -> dict:
     return {f'{prefix}{feature}': 0. for feature in FEATURE_NAMES}
@@ -81,15 +86,15 @@ def _calc_unidirectional_features(direction_slice, prefix='') -> dict:
 def calc_flow_features(raw_features: np.ndarray) -> dict:
     client_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 1]
     if client_slice.shape[0] > 0:
-        client_features = _calc_unidirectional_features(client_slice, prefix='client_')
+        client_features = _calc_unidirectional_features(client_slice, prefix=FEATURE_PREFIX.client)
     else:
-        client_features = _create_empty_features(prefix='client_')
+        client_features = _create_empty_features(prefix=FEATURE_PREFIX.client)
 
     server_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 0]
     if server_slice.shape[0] > 0:
-        server_features = _calc_unidirectional_features(server_slice, prefix='server_')
+        server_features = _calc_unidirectional_features(server_slice, prefix=FEATURE_PREFIX.server)
     else:
-        server_features = _create_empty_features(prefix='server_')
+        server_features = _create_empty_features(prefix=FEATURE_PREFIX.server)
 
     total_features = dict(**client_features, **server_features)
     return total_features
