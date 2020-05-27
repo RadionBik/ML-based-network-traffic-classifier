@@ -62,16 +62,19 @@ def _set_application_targets(dataset):
     return dataset
 
 
-def _prune_targets(dataset, garbage: list = None):
-    # rm garbage or irrelevent for classification at an upstream device
+def _rm_garbage(dataset, garbage: list = None, column_from='ndpi_app'):
+    """ rm irrelevant targets for classification at an upstream device """
     if garbage is None:
         garbage = GARBAGE_PROTOCOLS
+    garbage_indexer = dataset[column_from].isin(garbage)
+    logger.info(f'found {garbage_indexer.sum()} objects of garbage protos')
+    return dataset[~garbage_indexer]
 
-    garbage_indexer = dataset['ndpi_app'].isin(garbage)
-    logger.info(f'found {garbage_indexer.sum()} garbage protos')
-    dataset = dataset[~garbage_indexer]
+
+def _prune_targets(dataset, lower_bound=settings.LOWER_CLASS_OCCURRENCE_BOUND):
+    """ rm infrequent targets """
     proto_counts = dataset[TARGET_CLASS_COLUMN].value_counts()
-    underepresented_protos = proto_counts[proto_counts < settings.LOWER_CLASS_OCCURRENCE_BOUND].index.tolist()
+    underepresented_protos = proto_counts[proto_counts < lower_bound].index.tolist()
     if underepresented_protos:
         logger.info(f'pruning the following targets: {underepresented_protos}')
         dataset = dataset.loc[~dataset[TARGET_CLASS_COLUMN].isin(underepresented_protos)]
@@ -79,6 +82,7 @@ def _prune_targets(dataset, garbage: list = None):
 
 
 def save_dataset(dataset, save_to=None):
+    """ simple data tracking/versioning via a hash suffix """
     def _hash_df(df):
         return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
     df_hash = _hash_df(dataset)
@@ -92,7 +96,7 @@ def save_dataset(dataset, save_to=None):
 def read_dataset(filename):
     """ a simple wrapper for pandas """
     dataset = pd.read_csv(filename, na_filter='')
-    logger.info(f'read data from {filename}')
+    logger.info(f'read {len(dataset)} flows from {filename}')
     return dataset
 
 
@@ -106,9 +110,10 @@ def prepare_data(pcap_dir=None):
     usual_traffic = _set_application_targets(usual_traffic)
 
     iot_traffic = _prune_targets(iot_traffic)
+    usual_traffic = _prune_targets(usual_traffic)
 
-    garbage_apps = ['Amazon']
-    usual_traffic = _prune_targets(usual_traffic, garbage=GARBAGE_PROTOCOLS + garbage_apps)
+    iot_traffic = _rm_garbage(iot_traffic)
+    usual_traffic = _rm_garbage(usual_traffic, garbage=GARBAGE_PROTOCOLS + ['Amazon'], column_from=TARGET_CLASS_COLUMN)
 
     return pd.concat([usual_traffic, iot_traffic], ignore_index=True)
 
