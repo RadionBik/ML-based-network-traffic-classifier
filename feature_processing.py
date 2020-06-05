@@ -12,8 +12,6 @@ from datasets import TARGET_CLASS_COLUMN
 
 logger = logging.getLogger(__name__)
 
-RANDOM_SEED = 1
-
 
 class TransformNotFound(FileNotFoundError):
     def __init(self, filename):
@@ -38,8 +36,8 @@ class Featurizer:
         self.target_encoder = LabelEncoder()
         self.target_column = target_column
 
-        self.categorical_features = ['ip_proto'] if not categorical_features else categorical_features
-        self.cont_features = self._get_cont_features() if not cont_features else cont_features
+        self.categorical_features = ['ip_proto'] if categorical_features is None else categorical_features
+        self.cont_features = self._get_cont_features() if cont_features is None else cont_features
         self.consider_tcp_flags = consider_tcp_flags
         self.consider_j3a = consider_j3a
 

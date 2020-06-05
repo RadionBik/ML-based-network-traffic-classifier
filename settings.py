@@ -6,7 +6,7 @@ import pandas as pd
 
 
 logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(levelname)s:%(name)s %(message)s')
+                    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
 
 
 def _read_protocol_mapping() -> dict:
@@ -16,6 +16,8 @@ def _read_protocol_mapping() -> dict:
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
+TEST_STATIC_DIR = BASE_DIR / 'tests' / 'static'
+
 PCAP_OUTPUT_DIR = BASE_DIR / 'csv_files'
 
 config = configparser.ConfigParser()
@@ -25,3 +27,4 @@ PACKET_LIMIT_PER_FLOW = int(config['parser']['packetLimitPerFlow'])
 LOWER_CLASS_OCCURRENCE_BOUND = 50
 
 IP_PROTO_MAPPING = _read_protocol_mapping()
+RANDOM_SEED = 1

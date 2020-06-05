@@ -24,9 +24,8 @@ class RawFeatureMatrixIndexes:
 
 RMI = RawFeatureMatrixIndexes
 
-
 FEATURE_NAMES = [
-    'found_tcp_flags', 'bulk0', 'bulk1', 'client_packet0', 'client_packet1', 'tcp_window_avg',
+    'found_tcp_flags', 'bulk0', 'bulk1', 'packet0', 'packet1', 'tcp_window_avg',
     'bulk_max', 'bulk_min', 'bulk_avg', 'bulk_median', 'bulk_25q', 'bulk_75q', 'bulk_bytes', 'bulk_number',
     'packet_max', 'packet_min', 'packet_avg', 'packet_median', 'packet_25q', 'packet_75q', 'packet_bytes',
     'packet_number'
@@ -43,56 +42,77 @@ def _create_empty_features(prefix: str) -> dict:
     return {f'{prefix}{feature}': 0. for feature in FEATURE_NAMES}
 
 
-def _calc_unidirectional_features(direction_slice, prefix='') -> dict:
-    def _item_getter(matrix, row_indexer, column_indexer):
-        try:
-            return matrix[row_indexer, column_indexer]
-        except IndexError:
-            return 0
+def _item_getter(matrix, row_indexer, column_indexer):
+    try:
+        return matrix[row_indexer, column_indexer]
+    except IndexError:
+        return 0
 
+
+def _calc_unidirectional_flow_features(direction_slice, prefix='') -> dict:
     # this asserts using of the listed features
     features = _create_empty_features(prefix)
-    features[f'{prefix}found_tcp_flags'] = sorted(set(direction_slice[:, RMI.TCP_FLAGS]))
+    features[prefix + 'found_tcp_flags'] = sorted(set(direction_slice[:, RMI.TCP_FLAGS]))
 
-    features[f'{prefix}bulk0'] = _item_getter(direction_slice, 0, RMI.TRANSP_PAYLOAD)
-    features[f'{prefix}bulk1'] = _item_getter(direction_slice, 1, RMI.TRANSP_PAYLOAD)
+    features[prefix + 'bulk0'] = _item_getter(direction_slice, 0, RMI.TRANSP_PAYLOAD)
+    features[prefix + 'bulk1'] = _item_getter(direction_slice, 1, RMI.TRANSP_PAYLOAD)
 
-    features[f'{prefix}client_packet0'] = _item_getter(direction_slice, 0, RMI.IP_LEN)
-    features[f'{prefix}client_packet1'] = _item_getter(direction_slice, 1, RMI.IP_LEN)
+    features[prefix + 'packet0'] = _item_getter(direction_slice, 0, RMI.IP_LEN)
+    features[prefix + 'packet1'] = _item_getter(direction_slice, 1, RMI.IP_LEN)
 
-    features[f'{prefix}tcp_window_avg'] = np.mean(direction_slice[:, RMI.TCP_WINDOW])
+    features[prefix + 'tcp_window_avg'] = np.mean(direction_slice[:, RMI.TCP_WINDOW])
 
-    features[f'{prefix}bulk_max'] = np.max(direction_slice[:, RMI.TRANSP_PAYLOAD])
-    features[f'{prefix}bulk_min'] = np.min(direction_slice[:, RMI.TRANSP_PAYLOAD])
-    features[f'{prefix}bulk_avg'] = np.mean(direction_slice[:, RMI.TRANSP_PAYLOAD])
-    features[f'{prefix}bulk_median'] = np.median(direction_slice[:, RMI.TRANSP_PAYLOAD])
-    features[f'{prefix}bulk_25q'] = np.percentile(direction_slice[:, RMI.TRANSP_PAYLOAD], 25)
-    features[f'{prefix}bulk_75q'] = np.percentile(direction_slice[:, RMI.TRANSP_PAYLOAD], 75)
-    features[f'{prefix}bulk_bytes'] = np.sum(direction_slice[:, RMI.TRANSP_PAYLOAD])
+    features[prefix + 'bulk_max'] = np.max(direction_slice[:, RMI.TRANSP_PAYLOAD])
+    features[prefix + 'bulk_min'] = np.min(direction_slice[:, RMI.TRANSP_PAYLOAD])
+    features[prefix + 'bulk_avg'] = np.mean(direction_slice[:, RMI.TRANSP_PAYLOAD])
+    features[prefix + 'bulk_median'] = np.median(direction_slice[:, RMI.TRANSP_PAYLOAD])
+    features[prefix + 'bulk_25q'] = np.percentile(direction_slice[:, RMI.TRANSP_PAYLOAD], 25)
+    features[prefix + 'bulk_75q'] = np.percentile(direction_slice[:, RMI.TRANSP_PAYLOAD], 75)
+    features[prefix + 'bulk_bytes'] = np.sum(direction_slice[:, RMI.TRANSP_PAYLOAD])
     # counting non-empty packets (with payload)
-    features[f'{prefix}bulk_number'] = direction_slice[direction_slice[:, RMI.TRANSP_PAYLOAD] > 0].shape[0]
+    features[prefix + 'bulk_number'] = direction_slice[direction_slice[:, RMI.TRANSP_PAYLOAD] > 0].shape[0]
 
-    features[f'{prefix}packet_max'] = np.max(direction_slice[:, RMI.IP_LEN])
-    features[f'{prefix}packet_min'] = np.min(direction_slice[:, RMI.IP_LEN])
-    features[f'{prefix}packet_avg'] = np.mean(direction_slice[:, RMI.IP_LEN])
-    features[f'{prefix}packet_median'] = np.median(direction_slice[:, RMI.IP_LEN])
-    features[f'{prefix}packet_25q'] = np.percentile(direction_slice[:, RMI.IP_LEN], 25)
-    features[f'{prefix}packet_75q'] = np.percentile(direction_slice[:, RMI.IP_LEN], 75)
-    features[f'{prefix}packet_bytes'] = np.sum(direction_slice[:, RMI.IP_LEN])
-    features[f'{prefix}packet_number'] = direction_slice[:, RMI.IP_LEN].shape[0]
+    features[prefix + 'packet_max'] = np.max(direction_slice[:, RMI.IP_LEN])
+    features[prefix + 'packet_min'] = np.min(direction_slice[:, RMI.IP_LEN])
+    features[prefix + 'packet_avg'] = np.mean(direction_slice[:, RMI.IP_LEN])
+    features[prefix + 'packet_median'] = np.median(direction_slice[:, RMI.IP_LEN])
+    features[prefix + 'packet_25q'] = np.percentile(direction_slice[:, RMI.IP_LEN], 25)
+    features[prefix + 'packet_75q'] = np.percentile(direction_slice[:, RMI.IP_LEN], 75)
+    features[prefix + 'packet_bytes'] = np.sum(direction_slice[:, RMI.IP_LEN])
+    features[prefix + 'packet_number'] = direction_slice[:, RMI.IP_LEN].shape[0]
     return features
 
 
+def _calc_unidirectional_model_features(direction_slice, prefix='') -> dict:
+    features = {}
+    for index in range(settings.PACKET_LIMIT_PER_FLOW):
+        features[prefix + 'packet' + str(index)] = _item_getter(direction_slice, index, RMI.IP_LEN)
+    return features
+
+
+def calc_raw_features(raw_features: np.ndarray) -> dict:
+    """ estimates features for flow models that are used for data-augmentation purposes """
+    client_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 1]
+    client_features = _calc_unidirectional_model_features(client_slice, prefix=FEATURE_PREFIX.client)
+
+    server_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 0]
+    server_features = _calc_unidirectional_model_features(server_slice, prefix=FEATURE_PREFIX.server)
+
+    total_features = dict(**client_features, **server_features)
+    return total_features
+
+
 def calc_flow_features(raw_features: np.ndarray) -> dict:
+    """ estimates discriminative features for flow classification """
     client_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 1]
     if client_slice.shape[0] > 0:
-        client_features = _calc_unidirectional_features(client_slice, prefix=FEATURE_PREFIX.client)
+        client_features = _calc_unidirectional_flow_features(client_slice, prefix=FEATURE_PREFIX.client)
     else:
         client_features = _create_empty_features(prefix=FEATURE_PREFIX.client)
 
     server_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 0]
     if server_slice.shape[0] > 0:
-        server_features = _calc_unidirectional_features(server_slice, prefix=FEATURE_PREFIX.server)
+        server_features = _calc_unidirectional_flow_features(server_slice, prefix=FEATURE_PREFIX.server)
     else:
         server_features = _create_empty_features(prefix=FEATURE_PREFIX.server)
 
@@ -128,18 +148,27 @@ class raw_packets_matrix(nfstream.NFPlugin):
         entry.raw_packets_matrix = entry.raw_packets_matrix[entry.raw_packets_matrix[:, RMI.TIMESTAMP] > 0]
 
 
-def flow_processor(source):
-    streamer = nfstream.NFStreamer(source=source,
-                                   statistics=False,
-                                   idle_timeout=60,
-                                   active_timeout=10e5,
-                                   plugins=[raw_packets_matrix(volatile=False)],
-                                   enable_guess=True)
-    for flow_number, entry in enumerate(streamer):
+def _init_streamer(source, online_mode=False):
+    # since we decide and set routing policy upon first occurrence of a flow we don't care about its re-export
+    idle_timeout = 10 if online_mode else 10e5
+    return nfstream.NFStreamer(source=source,
+                               statistics=False,
+                               idle_timeout=60,
+                               active_timeout=idle_timeout,
+                               plugins=[raw_packets_matrix(volatile=False)],
+                               enable_guess=True)
+
+
+def _make_flow_id(entry):
+    return f'{settings.IP_PROTO_MAPPING[entry.protocol]} '\
+           f'{entry.src_ip}:{entry.src_port} '\
+           f'{entry.dst_ip}:{entry.dst_port}'
+
+
+def flow_processor(source, raw_features: bool = False):
+    for flow_number, entry in enumerate(_init_streamer(source)):
         label_features = {
-            'flow_id': f'{settings.IP_PROTO_MAPPING[entry.protocol]} '
-                       f'{entry.src_ip}:{entry.src_port} '
-                       f'{entry.dst_ip}:{entry.dst_port}',
+            'flow_id': _make_flow_id(entry),
             'ndpi_app': entry.application_name,
             'ndpi_category': entry.category_name,
             'ndpi_client_info': entry.client_info,
@@ -148,7 +177,10 @@ def flow_processor(source):
             'ndpi_j3as': entry.j3a_server,
             'ip_proto': settings.IP_PROTO_MAPPING[entry.protocol],
         }
-        flow_features = calc_flow_features(entry.raw_packets_matrix)
+        if raw_features:
+            flow_features = calc_raw_features(entry.raw_packets_matrix)
+        else:
+            flow_features = calc_flow_features(entry.raw_packets_matrix)
 
         if flow_number > 0 == flow_number % 1000:
             logger.info(f'processed {flow_number} flows...')
@@ -156,17 +188,18 @@ def flow_processor(source):
         yield dict(**label_features, **flow_features)
 
 
-def parse_to_dataframe(pcap_file: str) -> pd.DataFrame:
+def parse_features_to_dataframe(pcap_file: str, raw_features: bool = False) -> pd.DataFrame:
     flows = []
     logger.info(f'started parsing file {pcap_file}')
-    for flow in flow_processor(pcap_file):
+    for flow in flow_processor(pcap_file, raw_features):
         flows.append(flow)
-
     return pd.DataFrame(flows)
 
 
-def _get_output_csv_filename(pcap_filename) -> str:
-    core_name = pcap_filename.split('/')[-1].split('.')[0]
+def _get_output_csv_filename(args) -> str:
+    core_name = args.pcapfile.split('/')[-1].split('.')[0]
+    if args.raw:
+        core_name = 'raw_' + core_name
     output_csv = settings.PCAP_OUTPUT_DIR / f'{core_name}_{settings.PACKET_LIMIT_PER_FLOW}packets.csv'
     logger.info(f'target .csv path: {output_csv}')
     return output_csv
@@ -183,11 +216,19 @@ def main():
         "-o", "--output",
         help="output .csv file destination",
     )
+    parser.add_argument(
+        "--raw",
+        dest='raw',
+        action='store_true',
+        help="when enabled, calculating of feature statistics is disabled and only packet lengths are exported (may be"
+             "useful for traffic augmenters/models). By default, complete statistics for classifiers are calculated.",
+        default=False,
+    )
 
     args = parser.parse_args()
 
-    flow_df = parse_to_dataframe(args.pcapfile)
-    output_csv = args.output if args.output else _get_output_csv_filename(args.pcapfile)
+    flow_df = parse_features_to_dataframe(args.pcapfile, args.raw)
+    output_csv = args.output if args.output else _get_output_csv_filename(args)
     flow_df.to_csv(output_csv, index=False)
 
 

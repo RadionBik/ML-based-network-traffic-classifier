@@ -22,6 +22,9 @@ py/
 *.doc
 *.odt
 
+# config
+*.yaml
+
 venv
 config.ini
 csv_files
