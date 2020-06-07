@@ -116,8 +116,8 @@ def calc_raw_features(raw_matrix: np.ndarray) -> dict:
 
     features = {}
     for index in range(settings.PACKET_LIMIT_PER_FLOW):
-        features['packet' + str(index)] = _safe_vector_getter(packet_features, index)
-        features['iat' + str(index)] = _safe_vector_getter(iat_features, index)
+        features['raw_packet' + str(index)] = _safe_vector_getter(packet_features, index)
+        features['raw_iat' + str(index)] = _safe_vector_getter(iat_features, index)
 
     return features
 
@@ -196,15 +196,15 @@ def flow_processor(source, raw_features: bool = False):
             'ndpi_j3as': entry.j3a_server,
             'ip_proto': settings.IP_PROTO_MAPPING[entry.protocol],
         }
+        flow_features = calc_flow_features(entry.raw_packets_matrix)
         if raw_features:
-            flow_features = calc_raw_features(entry.raw_packets_matrix)
+            raw_packets = calc_raw_features(entry.raw_packets_matrix)
+            total_features = dict(**label_features, **flow_features, **raw_packets)
         else:
-            flow_features = calc_flow_features(entry.raw_packets_matrix)
-
+            total_features = dict(**label_features, **flow_features)
         if flow_number > 0 == flow_number % 1000:
             logger.info(f'processed {flow_number} flows...')
-
-        yield dict(**label_features, **flow_features)
+        yield total_features
 
 
 def parse_features_to_dataframe(pcap_file: str, raw_features: bool = False) -> pd.DataFrame:
@@ -218,7 +218,7 @@ def parse_features_to_dataframe(pcap_file: str, raw_features: bool = False) -> p
 def _get_output_csv_filename(args) -> str:
     core_name = args.pcapfile.split('/')[-1].split('.')[0]
     if args.raw:
-        core_name = 'raw_' + core_name
+        core_name = core_name + '_raw'
     output_csv = settings.PCAP_OUTPUT_DIR / f'{core_name}_{settings.PACKET_LIMIT_PER_FLOW}packets.csv'
     logger.info(f'target .csv path: {output_csv}')
     return output_csv
@@ -239,10 +239,9 @@ def main():
         "--raw",
         dest='raw',
         action='store_true',
-        help="when enabled, calculating of feature statistics is disabled and only packet lengths and IATs are exported"
-             "(may be useful for traffic augmenters/models). "
-             "By default, complete statistics for classifiers are calculated.",
-        default=False,
+        help="when enabled, in addition to feature statistics, raw features (packet lengths and IATs) of first "
+             "PACKET_LIMIT_PER_FLOW packets are exported, which are used by traffic augmenters/models.",
+        default=False
     )
 
     args = parser.parse_args()
