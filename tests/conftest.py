@@ -1,7 +1,9 @@
 import pytest
 import pandas as pd
+import numpy as np
 
 import settings
+import flow_parser
 
 
 @pytest.fixture
@@ -27,3 +29,13 @@ def classif_config():
             'GradBoost': {'type': 'GradientBoostingClassifier',
                           'param_search_space': {'n_estimators': [50], 'max_depth': [2, 3, 4, 5],
                                                  'learning_rate': [0.01, 0.05, 0.1]}}}
+
+
+@pytest.fixture
+def raw_matrix():
+    size = 10
+    raw_feature_matrix = np.zeros((size, 7))
+    raw_feature_matrix[:, flow_parser.RMI.TIMESTAMP] = np.array(range(size))
+    raw_feature_matrix[:, flow_parser.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
+    raw_feature_matrix[:, flow_parser.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
+    return raw_feature_matrix
