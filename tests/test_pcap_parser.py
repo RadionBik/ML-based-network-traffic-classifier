@@ -14,15 +14,17 @@ def test_feature_persistence():
     assert features.equals(features2)
 
 
+def _serialize_tcp_flag(x):
+    indexer = x.index.str.endswith('tcp_flags')
+    x.iloc[indexer] = x.iloc[indexer].apply(json.dumps)
+    return x
+
+
 def test_parser_output(dataset):
-    def _serialize(x):
-        indexer = x.index.str.endswith('tcp_flags')
-        x.iloc[indexer] = x.iloc[indexer].apply(json.dumps)
-        return x
 
     pcap_filename = (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
     parsed_features = flow_parser.parse_features_to_dataframe(pcap_filename)
-    parsed_features = parsed_features.apply(_serialize, axis=1)
+    parsed_features = parsed_features.apply(_serialize_tcp_flag, axis=1)
     pd.testing.assert_frame_equal(parsed_features, dataset,
                                   check_less_precise=2,
                                   check_like=True,
@@ -32,6 +34,7 @@ def test_parser_output(dataset):
 def test_raw_parser_output(raw_dataset):
     pcap_filename = (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
     parsed_features = flow_parser.parse_features_to_dataframe(pcap_filename, raw_features=True)
+    parsed_features = parsed_features.apply(_serialize_tcp_flag, axis=1)
     pd.testing.assert_frame_equal(parsed_features, raw_dataset,
                                   check_less_precise=2,
                                   check_like=True,
