@@ -1,6 +1,7 @@
 import json
 
 import pandas as pd
+import numpy as np
 
 import flow_parser
 import settings
@@ -35,3 +36,21 @@ def test_raw_parser_output(raw_dataset):
                                   check_less_precise=2,
                                   check_like=True,
                                   check_categorical=False)
+
+
+def test_raw_model_features(raw_matrix):
+    iat_features = flow_parser._get_iat(raw_matrix)
+    packet_features = flow_parser._get_packet_features(raw_matrix)
+    model_features = np.vstack([iat_features, packet_features]).T
+    expected = np.array([[0, -13],
+                        [1, 54],
+                        [1, 345],
+                        [1, -43],
+                        [1, -44],
+                        [1, 990],
+                        [1, 1000],
+                        [1, 23],
+                        [1, 555],
+                        [1, -1400],
+                        ])
+    assert (model_features == expected).all()

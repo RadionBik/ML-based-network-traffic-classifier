@@ -42,9 +42,16 @@ def _create_empty_features(prefix: str) -> dict:
     return {f'{prefix}{feature}': 0. for feature in FEATURE_NAMES}
 
 
-def _item_getter(matrix, row_indexer, column_indexer):
+def _safe_matrix_getter(matrix, row_indexer, column_indexer):
     try:
         return matrix[row_indexer, column_indexer]
+    except IndexError:
+        return 0
+
+
+def _safe_vector_getter(matrix, indexer):
+    try:
+        return matrix[indexer]
     except IndexError:
         return 0
 
@@ -54,11 +61,11 @@ def _calc_unidirectional_flow_features(direction_slice, prefix='') -> dict:
     features = _create_empty_features(prefix)
     features[prefix + 'found_tcp_flags'] = sorted(set(direction_slice[:, RMI.TCP_FLAGS]))
 
-    features[prefix + 'bulk0'] = _item_getter(direction_slice, 0, RMI.TRANSP_PAYLOAD)
-    features[prefix + 'bulk1'] = _item_getter(direction_slice, 1, RMI.TRANSP_PAYLOAD)
+    features[prefix + 'bulk0'] = _safe_matrix_getter(direction_slice, 0, RMI.TRANSP_PAYLOAD)
+    features[prefix + 'bulk1'] = _safe_matrix_getter(direction_slice, 1, RMI.TRANSP_PAYLOAD)
 
-    features[prefix + 'packet0'] = _item_getter(direction_slice, 0, RMI.IP_LEN)
-    features[prefix + 'packet1'] = _item_getter(direction_slice, 1, RMI.IP_LEN)
+    features[prefix + 'packet0'] = _safe_matrix_getter(direction_slice, 0, RMI.IP_LEN)
+    features[prefix + 'packet1'] = _safe_matrix_getter(direction_slice, 1, RMI.IP_LEN)
 
     features[prefix + 'tcp_window_avg'] = np.mean(direction_slice[:, RMI.TCP_WINDOW])
 
@@ -83,23 +90,36 @@ def _calc_unidirectional_flow_features(direction_slice, prefix='') -> dict:
     return features
 
 
-def _calc_unidirectional_model_features(direction_slice, prefix='') -> dict:
+def _get_iat(raw_matrix):
+    """ calcs inter-packet times """
+    timestamps = raw_matrix[:, RMI.TIMESTAMP]
+    next_timestamps = np.roll(timestamps, 1)
+    iat = timestamps - next_timestamps
+    iat[0] = 0
+    return iat
+
+
+def _get_packet_features(raw_matrix):
+    """ sets packet len features negative for server-side packets """
+    packet_features = np.zeros(raw_matrix.shape[0])
+    client_indexer = np.where(raw_matrix[:, RMI.IS_CLIENT] == 1)[0]
+    server_indexer = np.where(raw_matrix[:, RMI.IS_CLIENT] == 0)[0]
+    packet_features[client_indexer] = raw_matrix[client_indexer, RMI.IP_LEN]
+    packet_features[server_indexer] = raw_matrix[server_indexer, RMI.IP_LEN] * -1
+    return packet_features
+
+
+def calc_raw_features(raw_matrix: np.ndarray) -> dict:
+    """ estimates features for flow models that are used for data-augmentation purposes """
+    iat_features = _get_iat(raw_matrix)
+    packet_features = _get_packet_features(raw_matrix)
+
     features = {}
     for index in range(settings.PACKET_LIMIT_PER_FLOW):
-        features[prefix + 'packet' + str(index)] = _item_getter(direction_slice, index, RMI.IP_LEN)
+        features['packet' + str(index)] = _safe_vector_getter(packet_features, index)
+        features['iat' + str(index)] = _safe_vector_getter(iat_features, index)
+
     return features
-
-
-def calc_raw_features(raw_features: np.ndarray) -> dict:
-    """ estimates features for flow models that are used for data-augmentation purposes """
-    client_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 1]
-    client_features = _calc_unidirectional_model_features(client_slice, prefix=FEATURE_PREFIX.client)
-
-    server_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 0]
-    server_features = _calc_unidirectional_model_features(server_slice, prefix=FEATURE_PREFIX.server)
-
-    total_features = dict(**client_features, **server_features)
-    return total_features
 
 
 def calc_flow_features(raw_features: np.ndarray) -> dict:
@@ -159,13 +179,12 @@ def _init_streamer(source, online_mode=False):
                                enable_guess=True)
 
 
-def _make_flow_id(entry):
-    return f'{settings.IP_PROTO_MAPPING[entry.protocol]} '\
-           f'{entry.src_ip}:{entry.src_port} '\
-           f'{entry.dst_ip}:{entry.dst_port}'
-
-
 def flow_processor(source, raw_features: bool = False):
+    def _make_flow_id(entry):
+        return f'{settings.IP_PROTO_MAPPING[entry.protocol]} ' \
+               f'{entry.src_ip}:{entry.src_port} ' \
+               f'{entry.dst_ip}:{entry.dst_port}'
+
     for flow_number, entry in enumerate(_init_streamer(source)):
         label_features = {
             'flow_id': _make_flow_id(entry),
@@ -220,8 +239,9 @@ def main():
         "--raw",
         dest='raw',
         action='store_true',
-        help="when enabled, calculating of feature statistics is disabled and only packet lengths are exported (may be"
-             "useful for traffic augmenters/models). By default, complete statistics for classifiers are calculated.",
+        help="when enabled, calculating of feature statistics is disabled and only packet lengths and IATs are exported"
+             "(may be useful for traffic augmenters/models). "
+             "By default, complete statistics for classifiers are calculated.",
         default=False,
     )
 
