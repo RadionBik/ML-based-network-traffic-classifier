@@ -82,12 +82,20 @@ def _prune_targets(dataset, lower_bound=settings.LOWER_CLASS_OCCURRENCE_BOUND):
 
 
 def save_dataset(dataset, save_to=None):
-    """ simple data tracking/versioning via a hash suffix """
+    """ simple data tracking/versioning via hash suffixes """
     def _hash_df(df):
         return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
+
+    def _get_current_commit_hash():
+        """ get commit hash at HEAD """
+        from git import Repo
+        repo = Repo(settings.BASE_DIR)
+        return repo.head.commit.hexsha
+
     df_hash = _hash_df(dataset)
+    head_hash = _get_current_commit_hash()
     if save_to is None:
-        save_to = settings.BASE_DIR / f'datasets/dataset_{df_hash}.csv'
+        save_to = settings.BASE_DIR / f'datasets/dataset_git_{head_hash}_content_{df_hash}.csv'
     dataset.to_csv(save_to, index=False)
     logger.info(f'saved dataset to {save_to}')
     return save_to
