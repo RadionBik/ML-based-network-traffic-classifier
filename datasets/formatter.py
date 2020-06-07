@@ -12,17 +12,18 @@ logger = logging.getLogger(__name__)
 
 
 TARGET_CLASS_COLUMN = 'target_class'
-# signalling is common
+# signalling protos are common among all devices and it doesn't make sense to treat them separately
 COMMON_PROTOCOLS = ['DNS', 'NTP', 'STUN']
 GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSDP']
 
 
-def _load_parsed_results(pcap_dir = None):
-    if isinstance(pcap_dir, str) and not isinstance(pcap_dir, pathlib.Path):
-        pcap_dir = pathlib.Path(pcap_dir)
-    elif pcap_dir is None:
-        pcap_dir = settings.PCAP_OUTPUT_DIR
-    parsed_pcaps = list(pcap_dir.glob('*.csv'))
+def _load_parsed_results(dir_with_parsed_csvs = None):
+    if dir_with_parsed_csvs is None:
+        dir_with_parsed_csvs = settings.PCAP_OUTPUT_DIR
+    else:
+        dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
+
+    parsed_pcaps = list(dir_with_parsed_csvs.glob('*.csv'))
 
     iot_datasets = []
     usual_traffic = None
@@ -47,14 +48,16 @@ def _set_common_protos_targets(dataset):
 
 
 def _set_iot_devices_targets(dataset):
+    """ assigns target class according to the category of an IoT device """
     common_indexer = dataset[TARGET_CLASS_COLUMN].isin(COMMON_PROTOCOLS)
-    iot_category = dataset.loc[~common_indexer, 'source_file'].str.split('_').apply(lambda x: x[0])
+    iot_category = dataset.loc[~common_indexer, 'source_file'].str.split('_').apply(lambda x: 'IoT_' + x[0])
     dataset.loc[~common_indexer, TARGET_CLASS_COLUMN] = iot_category
     logger.info(str(dataset[TARGET_CLASS_COLUMN].value_counts()))
     return dataset
 
 
 def _set_application_targets(dataset):
+    """ assigns target class according to the 'Y' application from nDPI's 'X.Y' label """
     common_indexer = dataset[TARGET_CLASS_COLUMN].isin(COMMON_PROTOCOLS)
     cleaned_up_applications = dataset.loc[~common_indexer, 'ndpi_app'].str.split('.').apply(lambda x: x[-1])
     dataset.loc[~common_indexer, TARGET_CLASS_COLUMN] = cleaned_up_applications
@@ -71,14 +74,14 @@ def _rm_garbage(dataset, garbage: list = None, column_from='ndpi_app'):
     return dataset[~garbage_indexer]
 
 
-def _prune_targets(dataset, lower_bound=settings.LOWER_CLASS_OCCURRENCE_BOUND):
+def prune_targets(dataset, lower_bound=settings.LOWER_BOUND_CLASS_OCCURRENCE):
     """ rm infrequent targets """
     proto_counts = dataset[TARGET_CLASS_COLUMN].value_counts()
     underepresented_protos = proto_counts[proto_counts < lower_bound].index.tolist()
     if underepresented_protos:
         logger.info(f'pruning the following targets: {underepresented_protos}')
         dataset = dataset.loc[~dataset[TARGET_CLASS_COLUMN].isin(underepresented_protos)]
-    return dataset
+    return dataset.reset_index(drop=True)
 
 
 def save_dataset(dataset, save_to=None):
@@ -109,6 +112,7 @@ def read_dataset(filename):
 
 
 def prepare_data(pcap_dir=None):
+    """ the order of operations matters """
     iot_traffic, usual_traffic = _load_parsed_results(pcap_dir)
 
     iot_traffic = _set_common_protos_targets(iot_traffic)
@@ -117,13 +121,10 @@ def prepare_data(pcap_dir=None):
     iot_traffic = _set_iot_devices_targets(iot_traffic)
     usual_traffic = _set_application_targets(usual_traffic)
 
-    iot_traffic = _prune_targets(iot_traffic)
-    usual_traffic = _prune_targets(usual_traffic)
-
     iot_traffic = _rm_garbage(iot_traffic)
     usual_traffic = _rm_garbage(usual_traffic, garbage=GARBAGE_PROTOCOLS + ['Amazon'], column_from=TARGET_CLASS_COLUMN)
-
-    return pd.concat([usual_traffic, iot_traffic], ignore_index=True)
+    merged_traffic = pd.concat([usual_traffic, iot_traffic], ignore_index=True)
+    return prune_targets(merged_traffic)
 
 
 if __name__ == '__main__':
