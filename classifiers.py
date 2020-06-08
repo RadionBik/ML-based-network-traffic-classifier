@@ -1,25 +1,24 @@
 #!/usr/bin/env python
 
 import logging
-import os
-import sys
-from time import time
 import typing
+from time import time
 
+import yaml
 from sklearn import metrics
-from sklearn.externals import joblib
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import train_test_split
-
 from sklearn.multiclass import OneVsOneClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
 
-import yaml
+import settings
+
+logger = logging.getLogger(__file__)
+
 
 REGISTERED_CLASSES = {
     cls.__name__: cls for cls in [
@@ -36,23 +35,22 @@ REGISTERED_CLASSES = {
 
 class ClassifierHolder:
     """ simple dataclass """
-    def __init__(self, classifier, param_search_space):
+    def __init__(self, classifier, param_search_space, shortcut_name=None):
         self.classifier = classifier
+        self.name = type(classifier).__name__ if not shortcut_name else shortcut_name
         self.param_search_space = param_search_space
 
-
-logging.basicConfig(stream=sys.stdout,
-                    level=logging.DEBUG,
-                    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
-logger = logging.getLogger()
-
-ROOT = os.path.dirname(__file__)
+    def __repr__(self):
+        repr_str = repr(self.classifier)
+        if self.param_search_space:
+            repr_str += f'\n\tsearch_space: {self.param_search_space}'
+        return repr_str
 
 
-def read_classifier_settings() -> dict:
+def _read_config_file(config_path) -> dict:
     """ simple wrapper around yaml.load """
-    with open(os.path.join(ROOT, 'classifiers.yaml')) as f:
-        settings = yaml.load(f)
+    with open(config_path) as f:
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
     return settings
 
 
@@ -67,96 +65,53 @@ def _process_settings(settings: dict) -> None:
                     ssp[pname] = list(range(pvalue['from'], pvalue['till'], step))
 
 
-def _instantiate_holders(settings: dict,
-                         random_seed: int,
-                         classes: typing.Dict[str, type]) -> typing.Dict[str, ClassifierHolder]:
-    result = {}
-    for key, params in settings.items():
-        kwargs = params.get('params', {})
-        if not params.get('norandom', False):
-            kwargs['random_state'] = random_seed
+def read_classifier_settings(config_path=None):
+    if config_path is None:
+        config_path = settings.BASE_DIR / 'classifiers_config.yaml'
+    config = _read_config_file(config_path)
+    _process_settings(config)
+    return config
 
-        logger.debug(f'Instantiating {params["type"]} with params {kwargs}')
+
+def initialize_classifiers(config: dict,
+                           random_seed: int = settings.RANDOM_SEED,
+                           classes: typing.Dict[str, type] = None) -> typing.Dict[str, ClassifierHolder]:
+
+    if classes is None:
+        classes = REGISTERED_CLASSES
+
+    result = {}
+    for key, params in config.items():
+        kwargs = params.get('params', {})
+
+        logger.info(f'Instantiating {params["type"]} with params {kwargs}')
         if 'estimator' in kwargs:  # this works only on one level deeper. No recursion
             new_kwargs = {**kwargs['estimator']['params']}
             new_kwargs['random_state'] = random_seed
             kwargs['estimator'] = classes[kwargs['estimator']['type']](**new_kwargs)
-        classifier = classes[params['type']](**kwargs)
-        holder = ClassifierHolder(classifier, params.get('param_search_space', {}))
-        result[key] = holder
+        else:
+            kwargs['random_state'] = random_seed
 
+        classifier = classes[params['type']](**kwargs)
+        holder = ClassifierHolder(classifier, params.get('param_search_space', {}), shortcut_name=key)
+        result[key] = holder
     return result
 
 
-class ClassifierEnsemble:
-    def __init__(self, config,  classifier_settings, file_suffix=None):
-        self._config = config
-        self.random_seed = int(self._config['offline']['randomSeed'])
-        _process_settings(classifier_settings)
-        self.holders = _instantiate_holders(classifier_settings,
-                                            random_seed=self.random_seed,
-                                            classes=REGISTERED_CLASSES)
-        self._suffix_for_optimized = '_opt'
-        self._suffix = file_suffix or self._config['general']['fileSaverSuffix']
+def fit_optimal_classifier(classifier: ClassifierHolder, X_train, y_train):
+    """ searches through pre-defined parameter space from the .yaml, and fits classifier with found parameters """
+    logger.info('Searching parameters for {} through {}'.format(classifier.name, classifier.param_search_space))
+    search = GridSearchCV(classifier.classifier,
+                          param_grid=classifier.param_search_space,
+                          n_jobs=-1,
+                          scoring=make_scorer(metrics.jaccard_score, average='micro'),
+                          cv=2,
+                          refit=True,
+                          verbose=1)
 
-    def _search_classif_parameters(self, classifier_name, X, y):
-        X_tr, X_val, y_tr, y_val = train_test_split(X, y,
-                                                    shuffle=True,
-                                                    test_size=.1,
-                                                    stratify=y,
-                                                    random_state=self.random_seed)
-        holder = self.holders[classifier_name]
-        logger.info('Searching through %s', holder.param_search_space)
-        search = GridSearchCV(holder.classifier,
-                              param_grid=holder.param_search_space,
-                              n_jobs=-1,
-                              scoring=make_scorer(metrics.jaccard_score, average='micro'),
-                              cv=3)
-
-        start = time()
-        search.fit(X_val, y_val)
-        logger.info('Search took {:.2f} seconds'.format(time() - start))
-        logger.info('Best parameters are {} with score {:.4f}'.format(search.best_params_, search.best_score_))
-
-        rand_state_key = 'random_state'
-        if isinstance(self.holders[classifier_name].classifier, OneVsOneClassifier):
-            rand_state_key = 'estimator__random_state'
-        return dict(search.best_params_, **{rand_state_key: self.random_seed})
-
-    @property
-    def enabled_classifiers(self) -> tuple:
-        for name, holder in self.holders.items():
-            if self._config['MLtoTest'].getboolean(name):
-                yield name, holder.classifier
-
-    def classif_filename(self, classif_name):
-        opt_suffix = self._suffix_for_optimized if self.optimized(classif_name) else ''
-        filename = os.path.join(self._config['general']['classifiers_folder'],
-                                f'{classif_name}{opt_suffix}{self._suffix}.cla')
-        return filename
-
-    def optimized(self, classif_name):
-        return self._config['MLtoOptimize'].getboolean(classif_name)
-
-    def fit(self, X, y):
-        for classif_name, classif in self.enabled_classifiers:
-            if self.optimized(classif_name):
-                logger.info(f'Searching parameters for {classif_name}...')
-                opt_params = self._search_classif_parameters(classif_name, X, y)
-                self.holders[classif_name].classifier.set_params(**opt_params)
-
-            logger.info(f'Started fitting {classif_name}...')
-
-            self.holders[classif_name].classifier.fit(X, y)
-            joblib.dump(self.holders[classif_name].classifier,
-                        self.classif_filename(classif_name))
-
-    def load(self):
-        for classif_name, classif in self.enabled_classifiers:
-            self.holders[classif_name].classifier = joblib.load(self.classif_filename(classif_name))
-
-    def predict(self, X):
-        return {
-            classif_name: classif.predict(X)
-            for classif_name, classif in self.enabled_classifiers
-        }
+    start = time()
+    search.fit(X_train, y_train)
+    logger.info('Search took {:.2f} seconds'.format(time() - start))
+    logger.info('Best parameters are {} with score {:.4f}'.format(search.best_params_, search.best_score_))
+    classifier.classifier = search.best_estimator_
+    return classifier

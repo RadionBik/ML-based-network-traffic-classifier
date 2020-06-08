@@ -1,6 +1,6 @@
-import configparser
 import logging
 import pathlib
+import os
 
 import pandas as pd
 
@@ -20,11 +20,9 @@ TEST_STATIC_DIR = BASE_DIR / 'tests' / 'static'
 
 PCAP_OUTPUT_DIR = BASE_DIR / 'csv_files'
 
-config = configparser.ConfigParser()
-config.read(BASE_DIR / 'config.ini')
-
-PACKET_LIMIT_PER_FLOW = int(config['parser']['packetLimitPerFlow'])
-LOWER_BOUND_CLASS_OCCURRENCE = 10
 
 IP_PROTO_MAPPING = _read_protocol_mapping()
 RANDOM_SEED = 1
+
+PACKET_LIMIT_PER_FLOW = int(os.getenv('PACKET_LIMIT_PER_FLOW', 20))
+LOWER_BOUND_CLASS_OCCURRENCE = int(os.getenv('LOWER_BOUND_CLASS_OCCURRENCE', 10))

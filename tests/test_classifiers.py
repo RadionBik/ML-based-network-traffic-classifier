@@ -1,29 +1,12 @@
 import classifiers
+import settings
 
 
-def test_instantiation():
-    class SomeClass:
-        def __init__(self, a=0, estimator=0, random_state=None):
-            pass
+def test_config_parsing(classif_config):
+    cfg = classifiers.read_classifier_settings(settings.TEST_STATIC_DIR / 'classifiers_config.yaml')
+    assert classif_config == cfg
 
-    class SomeOtherClass:
-        def __init__(self, random_state=None):
-            pass
 
-    settings = {
-        'simple': {
-            'type': 'SomeClass',
-            'params': {
-                'a': '10',
-                'estimator': {
-                    'type': 'SomeOtherClass',
-                    'params': {}
-                }
-            }
-        }
-    }
-    holders = classifiers._instantiate_holders(
-        settings, 10, {SomeClass.__name__: SomeClass,
-                       SomeOtherClass.__name__ : SomeOtherClass})
-
-    assert holders
+def test_init_clfs(classif_config):
+    clfs = classifiers.initialize_classifiers(classif_config)
+    assert clfs
