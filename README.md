@@ -6,33 +6,40 @@ UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 
 ## Key features
 
-* Configuration of testing scenarios via the `config.ini` file.
+* Configuration of ML algorithms and their parameter search space via the `classifiers_config.yaml` file.
 
 * Automatic feature extraction and processing for ML algorithms.
 
 * Support of various ML algorithms: Logistic regression, SVM, Decision Tree, Gradient Boosting, Random Forest, Multilayer Perceptron. 
 
-* Automatic optimization of the algorithms' parameters (can be activated in the `config.ini` file).
-
-* Setting ML algorithm's settings via `classifiers.yaml`
 
 ## Project structure
 
-* `flow_parser.py` converts collected PCAP-files into a .csv file with features and labels (obtained from `NFStream`).
+* `flow_parser.py` converts a PCAP-file into a .csv file with features and labels (obtained from `NFStream`). 
+The distinguishing feature is exporting of raw packet-features (e.g. 
+packet/payload sizes, timestamps, various packet-fields) in a numpy array,
+allowing such features as percentiles that are tricky to calculate in 
+online mode. 
 
-* `feature_processing.py` contains loaders for parsed .csv files, with automatic cleaning up of `.csv` files, e.g. remove seldom flows, etc.
+* `feature_processing.py` a wrapper of sklearn's transformers to 
+ease selecting of used features.
 
-* `report.py` contains a class for evaluation of the classifiers, plotting confusion matrices and scores. WARNING: may be broken, subject for fixing in future releases.
+* `datasets` contains utils to load/merge parsed `.csv` files, reassigns target classes (specific for my task).
 
-* `classifiers.py` contain the wrapper class ClassifierEnsemble that allows for parameter optimization, training, restoring and testing of the ML algorithms with sklearn-like interface. The parameter search space is specified during initialization. *Extending with other algorithms is encouraged.*
+* `report.py` contains a class for evaluation of the classifiers, plotting confusion matrices and scores. 
+WARNING: is broken, subject for fixing in future releases.
 
-* `traffic_classifier.py` runs the ML pipeline when a .csv is present.
+* `classifiers.py` contain the wrapper class ClassifierHolder that stores a model, its search space. 
+Extending with other algorithms is possible by updating the REGISTRED_CLASSES variable.
 
-* `pcap_files/` includes an example .pcap that is analyzed by the program modules by default.
+* `evaluate_classifiers.py` contains an example pipeline when a dataset is ready.
 
-* `trained_classifiers/` folder is used for storage of trained classifier that can be used later for validations on different traffic or in the live mode.
+* `pcap_files/` includes an example `.pcap` that is analyzed by the program modules by default. 
+Also contains task-specific pre-processing script.
 
-* `csv_files/` stores outputs of `flow_parser.py` .
+* `trained_classifiers/` folder is used for storage of trained classifier that can be used later for validations on different traffic or in the live mode (WARNING: not in use so far).
+
+* `csv_files/` stores outputs of `flow_parser.py`, includes task-specific script.
 
 * `figures/` this is where the output from the ClassifierEvaluator class is produced.  
 
@@ -43,19 +50,20 @@ UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 * **-p --pcapfiles** - one or more PCAP-files to process
 * **-o --output** - .csv file target to store the parsing results 
 
-### traffic_classifier.py
+### evaluate_classifiers.py
 
-`traffic_classifier.py -c [--config]`
-* **-c --config** - the configuration file to use
-* **--load-processors** -- overrides the settings in the configuration file, loads custom feature preprocessors 
-* **--fit-processors** -- overrides the settings in the configuration file, fits new feature preprocessors 
-* **--load-classifiers** -- overrides the settings in the configuration file, loads custom classifier models
-* **--fit-classifiers** -- overrides the settings in the configuration file, fits new classifier models 
+`evaluate_classifiers.py -c [--config]`
+* **-c --config** - the configuration `.yaml` to use, defaults to `classifiers_config.yaml`
+* **--dataset** -- path to preprocessed `.csv` dataset (see the `dataset` package) 
 
-*At this stage, you are encouraged to use Jupyter Notebook to experiment with this repo's features, especially with the `classifiers.py` module. Many things are hardcoded in order to suite tasks I solved at the moment of writing this software.*
+## Usage example
 
-## First run
+1. A feature file has to be prepared before running model training, so make sure a `.csv` is already present 
+by running `flow_parser.py`. 
 
-Make a copy of the `config.example.ini` to experiment with. If the config file during a module's start is not provided, `config.ini` is looked over by default.
+2. OPTIONAL. Run `python dataset/formatter.py`. It creates a target column specified in `settings:TARGET_CLASS_COLUMN`,
+ change the one if this step is omitted.
 
-A feature file has to be prepared before running model training, so make sure a .csv is already present by running `flow_parser.py`.   
+3. Make a copy of the `classifiers_config.yaml` to experiment with and
+test classifiers via `evaluate_classifiers.py`
+
