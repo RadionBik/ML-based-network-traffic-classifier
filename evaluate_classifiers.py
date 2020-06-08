@@ -5,7 +5,8 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
 from classifiers import read_classifier_settings, initialize_classifiers
-from datasets import read_dataset, TARGET_CLASS_COLUMN
+from datasets import read_dataset
+from settings import TARGET_CLASS_COLUMN
 from feature_processing import Featurizer
 
 logger = logging.getLogger(__name__)

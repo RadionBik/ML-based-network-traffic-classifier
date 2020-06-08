@@ -26,3 +26,6 @@ RANDOM_SEED = 1
 
 PACKET_LIMIT_PER_FLOW = int(os.getenv('PACKET_LIMIT_PER_FLOW', 20))
 LOWER_BOUND_CLASS_OCCURRENCE = int(os.getenv('LOWER_BOUND_CLASS_OCCURRENCE', 10))
+
+# customize, if needed
+TARGET_CLASS_COLUMN = 'target_class'
