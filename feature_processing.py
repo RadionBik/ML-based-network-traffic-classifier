@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
 import flow_parser
-from datasets import TARGET_CLASS_COLUMN
+from settings import TARGET_CLASS_COLUMN
 
 logger = logging.getLogger(__name__)
 
