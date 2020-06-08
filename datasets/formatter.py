@@ -4,14 +4,12 @@ import pathlib
 
 import pandas as pd
 
-import settings
+from settings import TARGET_CLASS_COLUMN, PCAP_OUTPUT_DIR, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
 
 """ task-specific module, provided for the sake of reproducibility """
 
 logger = logging.getLogger(__name__)
 
-
-TARGET_CLASS_COLUMN = 'target_class'
 # signalling protos are common among all devices and it doesn't make sense to treat them separately
 COMMON_PROTOCOLS = ['DNS', 'NTP', 'STUN']
 GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSDP']
@@ -19,7 +17,7 @@ GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSD
 
 def _load_parsed_results(dir_with_parsed_csvs = None):
     if dir_with_parsed_csvs is None:
-        dir_with_parsed_csvs = settings.PCAP_OUTPUT_DIR
+        dir_with_parsed_csvs = PCAP_OUTPUT_DIR
     else:
         dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
 
@@ -74,7 +72,7 @@ def _rm_garbage(dataset, garbage: list = None, column_from='ndpi_app'):
     return dataset[~garbage_indexer]
 
 
-def prune_targets(dataset, lower_bound=settings.LOWER_BOUND_CLASS_OCCURRENCE):
+def prune_targets(dataset, lower_bound=LOWER_BOUND_CLASS_OCCURRENCE):
     """ rm infrequent targets """
     proto_counts = dataset[TARGET_CLASS_COLUMN].value_counts()
     underepresented_protos = proto_counts[proto_counts < lower_bound].index.tolist()
@@ -92,13 +90,13 @@ def save_dataset(dataset, save_to=None):
     def _get_current_commit_hash():
         """ get commit hash at HEAD """
         from git import Repo
-        repo = Repo(settings.BASE_DIR)
+        repo = Repo(BASE_DIR)
         return repo.head.commit.hexsha
 
     df_hash = _hash_df(dataset)
     head_hash = _get_current_commit_hash()
     if save_to is None:
-        save_to = settings.BASE_DIR / f'datasets/dataset_git_{head_hash}_content_{df_hash}.csv'
+        save_to = BASE_DIR / f'datasets/dataset_git_{head_hash}_content_{df_hash}.csv'
     dataset.to_csv(save_to, index=False)
     logger.info(f'saved dataset to {save_to}')
     return save_to
