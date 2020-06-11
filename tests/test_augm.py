@@ -33,12 +33,13 @@ def test_priors(quantized_packets):
 
 def test_markov_generator(quantized_packets):
     gener = markov.MarkovGenerator()
-    gener.fit(quantized_packets)
+    gener.fit(quantized_packets*-1)
     sampled = gener.sample(1000)
     new_gener = markov.MarkovGenerator()
     new_gener.fit(sampled)
     assert np.isclose(gener.init_priors, new_gener.init_priors, atol=0.1).all()
     # accumulated error < 1. for 114x114 matrix is OK
-    assert np.linalg.norm(gener.transition_matrix - new_gener.transition_matrix, ord='fro') < 1.
+    tr_matrix_frob_norm = np.linalg.norm(gener.transition_matrix - new_gener.transition_matrix, ord='fro')
+    assert tr_matrix_frob_norm < 1.
 
 
