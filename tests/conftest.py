@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import pandas as pd
 import numpy as np
@@ -39,3 +41,10 @@ def raw_matrix():
     raw_feature_matrix[:, flow_parser.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
     raw_feature_matrix[:, flow_parser.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
     return raw_feature_matrix
+
+
+@pytest.fixture
+def quantized_packets():
+    with open(settings.TEST_STATIC_DIR / 'quantized_pkts.json', 'r') as js:
+        pkts = json.load(js)
+    return np.array(pkts).reshape(-1, 20)
