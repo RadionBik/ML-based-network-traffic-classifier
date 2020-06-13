@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 
+import feature_processing
 import flow_parser
 import settings
 
@@ -42,8 +43,8 @@ def test_raw_parser_output(raw_dataset):
 
 
 def test_raw_model_features(raw_matrix):
-    iat_features = flow_parser._get_iat(raw_matrix)
-    packet_features = flow_parser._get_packet_features(raw_matrix)
+    iat_features = feature_processing._get_iat(raw_matrix)
+    packet_features = feature_processing._get_packet_features(raw_matrix)
     model_features = np.vstack([iat_features, packet_features]).T
     expected = np.array([[0, -13],
                         [1, 54],
