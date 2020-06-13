@@ -1,5 +1,6 @@
+import functools
 import logging
-from typing import Tuple
+from typing import Tuple, Union, Optional
 
 import numpy as np
 import pandas as pd
@@ -7,17 +8,10 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
-import flow_parser
+import settings
 from settings import TARGET_CLASS_COLUMN
 
 logger = logging.getLogger(__name__)
-
-
-class TransformNotFound(FileNotFoundError):
-    def __init(self, filename):
-        super().__init__('Transform {} was not found, please check it exists or run training first'.format(
-            filename
-        ))
 
 
 class Featurizer:
@@ -60,10 +54,10 @@ class Featurizer:
     @staticmethod
     def _get_cont_features():
         # here we expect features to be consistent with flow_parser's
-        base_features = [feat for feat in flow_parser.FEATURE_NAMES
+        base_features = [feat for feat in FEATURE_NAMES
                          if 'bulk' in feat or 'packet' in feat]
         cont_features = []
-        for prefix in [flow_parser.FEATURE_PREFIX.client, flow_parser.FEATURE_PREFIX.server]:
+        for prefix in [FEATURE_PREFIX.client, FEATURE_PREFIX.server]:
             for feature in base_features:
                 cont_features.append(prefix+feature)
         return cont_features
@@ -89,3 +83,118 @@ class Featurizer:
 
     def encode(self, data: pd.DataFrame) -> np.ndarray:
         return self.target_encoder.transform(data[self.target_column])
+
+
+FEATURE_NAMES = (
+    'found_tcp_flags', 'bulk0', 'bulk1', 'packet0', 'packet1', 'tcp_window_avg',
+    'bulk_max', 'bulk_min', 'bulk_avg', 'bulk_median', 'bulk_25q', 'bulk_75q', 'bulk_bytes', 'bulk_number',
+    'packet_max', 'packet_min', 'packet_avg', 'packet_median', 'packet_25q', 'packet_75q', 'packet_bytes',
+    'packet_number'
+)
+
+
+class FEATURE_PREFIX:
+    client = 'client_'
+    server = 'server_'
+
+
+@functools.lru_cache(maxsize=2)
+def create_empty_features(prefix: str, feature_list=FEATURE_NAMES) -> dict:
+    return {f'{prefix}{feature}': 0. for feature in feature_list}
+
+
+def _safe_vector_getter(vector, indexer) -> Union[int, float]:
+    try:
+        return vector[indexer]
+    except IndexError:
+        return 0
+
+
+def calc_parameter_stats(feature_slice, prefix, feature_name):
+    return {prefix + feature_name + '0': _safe_vector_getter(feature_slice, 0),
+            prefix + feature_name + '1': _safe_vector_getter(feature_slice, 1),
+            prefix + feature_name + '_max': np.max(feature_slice),
+            prefix + feature_name + '_min': np.min(feature_slice),
+            prefix + feature_name + '_avg': np.mean(feature_slice),
+            prefix + feature_name + '_median': np.median(feature_slice),
+            prefix + feature_name + '_25q': np.percentile(feature_slice, 25),
+            prefix + feature_name + '_75q': np.percentile(feature_slice, 75),
+            prefix + feature_name + '_bytes': np.sum(feature_slice),
+            # counting non-empty bulks (packets with payload)
+            prefix + feature_name + '_number': feature_slice[feature_slice > 0].shape[0]
+    }
+
+
+def _calc_unidirectional_flow_features(direction_slice, prefix='', features: Optional[list] = None) -> dict:
+    # this asserts using of the listed features
+    if features is None:
+        features = create_empty_features(prefix)
+    features[prefix + 'found_tcp_flags'] = sorted(set(direction_slice[:, RMI.TCP_FLAGS]))
+    features[prefix + 'tcp_window_avg'] = np.mean(direction_slice[:, RMI.TCP_WINDOW])
+
+    features.update(calc_parameter_stats(direction_slice[:, RMI.TRANSP_PAYLOAD], prefix, 'bulk'))
+    features.update(calc_parameter_stats(direction_slice[:, RMI.IP_LEN], prefix, 'packet'))
+    return features
+
+
+def _get_iat(raw_matrix):
+    """ calcs inter-packet times """
+    timestamps = raw_matrix[:, RMI.TIMESTAMP]
+    next_timestamps = np.roll(timestamps, 1)
+    iat = timestamps - next_timestamps
+    iat[0] = 0
+    return iat
+
+
+def _get_packet_features(raw_matrix):
+    """ sets packet len features negative for server-side packets """
+    packet_features = np.zeros(raw_matrix.shape[0])
+    client_indexer = np.where(raw_matrix[:, RMI.IS_CLIENT] == 1)[0]
+    server_indexer = np.where(raw_matrix[:, RMI.IS_CLIENT] == 0)[0]
+    packet_features[client_indexer] = raw_matrix[client_indexer, RMI.IP_LEN]
+    packet_features[server_indexer] = raw_matrix[server_indexer, RMI.IP_LEN] * -1
+    return packet_features
+
+
+def calc_raw_features(raw_matrix: np.ndarray) -> dict:
+    """ estimates features for flow models that are used for data-augmentation purposes """
+    iat_features = _get_iat(raw_matrix)
+    packet_features = _get_packet_features(raw_matrix)
+
+    features = {}
+    for index in range(settings.PACKET_LIMIT_PER_FLOW):
+        features['raw_packet' + str(index)] = _safe_vector_getter(packet_features, index)
+        features['raw_iat' + str(index)] = _safe_vector_getter(iat_features, index)
+
+    return features
+
+
+def calc_flow_features(raw_features: np.ndarray) -> dict:
+    """ estimates discriminative features for flow classification """
+    client_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 1]
+    if client_slice.shape[0] > 0:
+        client_features = _calc_unidirectional_flow_features(client_slice, prefix=FEATURE_PREFIX.client)
+    else:
+        client_features = create_empty_features(prefix=FEATURE_PREFIX.client)
+
+    server_slice = raw_features[raw_features[:, RMI.IS_CLIENT] == 0]
+    if server_slice.shape[0] > 0:
+        server_features = _calc_unidirectional_flow_features(server_slice, prefix=FEATURE_PREFIX.server)
+    else:
+        server_features = create_empty_features(prefix=FEATURE_PREFIX.server)
+
+    total_features = dict(**client_features, **server_features)
+    return total_features
+
+
+class RawFeatureMatrixIndexes:
+    TIMESTAMP = 0
+    IP_LEN = 1
+    TRANSP_PAYLOAD = 2
+    TCP_FLAGS = 3
+    TCP_WINDOW = 4
+    IP_PROTO = 5
+    IS_CLIENT = 6
+
+
+RMI = RawFeatureMatrixIndexes

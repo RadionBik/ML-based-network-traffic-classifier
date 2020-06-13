@@ -1,6 +1,7 @@
 import numpy as np
+import pandas as pd
 
-from augmenter import markov
+from augmenter import markov, calc_partial_flow_features_from_raw_augmented
 
 
 def test_norm():
@@ -43,3 +44,14 @@ def test_markov_generator(quantized_packets):
     assert tr_matrix_frob_norm < 1.
 
 
+def test_feature_calc_from_generated(raw_dataset):
+    raw_packets = raw_dataset.filter(regex='raw_packet')
+    output = raw_packets.apply(func=calc_partial_flow_features_from_raw_augmented,
+                               axis=1,
+                               result_type='expand')
+
+    expected_packet_features = raw_dataset.filter(regex='^client_packet|^server_packet')
+    pd.testing.assert_frame_equal(expected_packet_features, output,
+                                  check_less_precise=2,
+                                  check_like=True,
+                                  check_dtype=False)

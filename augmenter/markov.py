@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-
+import pandas as pd
 from sklearn.preprocessing import normalize
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def _calc_transition_matrix(seq_matrix, state_numb):
         # pad empty transition rows uniformly
         transition_matrix[empty_rows, :] = np.ones((empty_row_number, transition_matrix.shape[0]))
     norm_trans_matrix = _normalize_by_rows(transition_matrix)
-    logger.info('estimated transition matrix')
+    logger.info(f'estimated transition matrix for {norm_trans_matrix.shape[0]} states')
     return norm_trans_matrix
 
 
@@ -78,6 +78,7 @@ class MarkovGenerator:
 
     def sample(self, n_sequences):
         assert n_sequences > 0
+        logger.info(f'started generating {n_sequences} sequences')
         sampled_matrix = np.zeros((n_sequences, self._seq_len), dtype=int)
         for seq_index in range(n_sequences):
             sampled_matrix[seq_index, :] = self._sample_sequence()
