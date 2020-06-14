@@ -1,7 +1,8 @@
-from .features import calc_partial_flow_features_from_raw_augmented
+from .features import calc_flow_features_raw_packets, oversample_raw_packets
 from .markov import MarkovGenerator
 
 __all__ = [
-    calc_partial_flow_features_from_raw_augmented,
+    calc_flow_features_raw_packets,
+    oversample_raw_packets,
     MarkovGenerator
 ]
