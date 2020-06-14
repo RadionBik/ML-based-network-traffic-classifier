@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,15 @@ def _calc_prior_probas(seq_matrix, state_numb):
     return priors
 
 
-class MarkovGenerator:
+class BaseGenerator:
+    def fit(self, X):
+        raise NotImplementedError
+
+    def sample(self, n_sequences):
+        raise NotImplementedError
+
+
+class MarkovGenerator(BaseGenerator):
     def __init__(self):
         self.n_states = None
         self.transition_matrix = None
@@ -89,3 +98,29 @@ class MarkovGenerator:
         for index in range(1, self._seq_len):
             sampled[index] = np.random.choice(self._states, p=self.transition_matrix[sampled[index-1], :])
         return sampled
+
+
+class MarkovQuantizedGenerator(BaseGenerator):
+    def __init__(self, cluster_limit=200):
+        self.cluster_limit = cluster_limit
+        self.quantizer = None
+        self.generator = MarkovGenerator()
+
+    def _get_cluster_number(self, X):
+        unique_points = np.unique(X).size
+        cluster_number = self.cluster_limit if unique_points > self.cluster_limit else unique_points
+        logger.info(f'selected {cluster_number} clusters for quantization')
+        return cluster_number
+
+    def fit(self, X):
+        cluster_number = self._get_cluster_number(X)
+        self.quantizer = KMeans(n_clusters=cluster_number)
+        X_quantized = self.quantizer.fit_predict(X.flatten().reshape(-1, 1)).reshape(X.shape)
+        logger.info('quantized input')
+        self.generator.fit(X_quantized)
+
+    def sample(self, n_sequences):
+        X_gen = self.generator.sample(n_sequences)
+        X_restored = self.quantizer.cluster_centers_[X_gen][:, :, 0]
+        logger.info('dequantized output')
+        return X_restored
