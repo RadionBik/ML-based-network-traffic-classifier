@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from augmenter import markov, calc_partial_flow_features_from_raw_augmented
+from augmenter import markov, calc_flow_features_raw_packets, oversample_raw_packets
 
 
 def test_norm():
@@ -46,7 +46,7 @@ def test_markov_generator(quantized_packets):
 
 def test_feature_calc_from_generated(raw_dataset):
     raw_packets = raw_dataset.filter(regex='raw_packet')
-    output = raw_packets.apply(func=calc_partial_flow_features_from_raw_augmented,
+    output = raw_packets.apply(func=calc_flow_features_raw_packets,
                                axis=1,
                                result_type='expand')
 
@@ -55,3 +55,12 @@ def test_feature_calc_from_generated(raw_dataset):
                                   check_less_precise=2,
                                   check_like=True,
                                   check_dtype=False)
+
+
+def test_markov_augmenter(raw_dataset, mocker):
+    target_class = 'ndpi_category'
+    dataset = raw_dataset.filter(regex=f'raw_packet|{target_class}')
+    mocker.patch('augmenter.features.TARGET_CLASS_COLUMN', target_class)
+    gen_packets = oversample_raw_packets(dataset)
+    assert set(dataset.columns) == set(gen_packets.columns)
+
