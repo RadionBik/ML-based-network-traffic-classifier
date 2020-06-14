@@ -64,3 +64,28 @@ def test_markov_augmenter(raw_dataset, mocker):
     gen_packets = oversample_raw_packets(dataset)
     assert set(dataset.columns) == set(gen_packets.columns)
 
+
+def test_markov_kmeans_augmenter(raw_dataset):
+    def _calc_hist_like_pmf(packet_vector):
+        pmf = np.histogram(packet_vector, bins=50, range=(0, 1000), density=True)[0]
+        return pmf
+
+    raw_packets = raw_dataset.filter(regex='raw_packet')
+    gener = markov.MarkovQuantizedGenerator()
+    gener.fit(raw_packets.values)
+    output = gener.sample(raw_packets.shape[0])
+    priors_distrs_norm = np.linalg.norm(
+        _calc_hist_like_pmf(output[:, 0]) -
+        _calc_hist_like_pmf(raw_packets.iloc[:, 0]),
+        ord=1)
+    assert priors_distrs_norm < 0.015
+
+    total_distr_norm = np.linalg.norm(
+        _calc_hist_like_pmf(output.flatten()) -
+        _calc_hist_like_pmf(raw_packets.values.flatten()),
+        ord=1)
+
+    assert total_distr_norm < 0.01
+    pass
+
+
