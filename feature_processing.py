@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class Featurizer:
     """
-    Featurizer processes raw features from a pandas object by merging results from scalers and one-hot encoders
+    Featurizer processes features from a pandas object by merging results from scalers and one-hot encoders
     and encodes target labels
     """
 
