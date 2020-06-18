@@ -86,6 +86,5 @@ def test_markov_kmeans_augmenter(raw_dataset):
         ord=1)
 
     assert total_distr_norm < 0.01
-    pass
 
 
