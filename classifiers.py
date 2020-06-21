@@ -14,6 +14,7 @@ from sklearn.multiclass import OneVsOneClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
 
 import settings
 
@@ -29,6 +30,7 @@ REGISTERED_CLASSES = {
         GradientBoostingClassifier,
         LogisticRegression,
         OneVsOneClassifier,
+        KNeighborsClassifier,
     ]
 }
 
@@ -86,12 +88,13 @@ def initialize_classifiers(config: dict,
 
         logger.info(f'Instantiating {params["type"]} with params {kwargs}')
         if 'estimator' in kwargs:  # this works only on one level deeper. No recursion
-            new_kwargs = {**kwargs['estimator']['params']}
-            new_kwargs['random_state'] = random_seed
-            kwargs['estimator'] = classes[kwargs['estimator']['type']](**new_kwargs)
+            sub_kwargs = {'random_state': random_seed}
+            kwargs['estimator'] = classes[kwargs['estimator']['type']](**sub_kwargs)
         else:
             kwargs['random_state'] = random_seed
 
+        if params['type'] == 'KNeighborsClassifier':
+            kwargs.pop('random_state')
         classifier = classes[params['type']](**kwargs)
         holder = ClassifierHolder(classifier, params.get('param_search_space', {}), shortcut_name=key)
         result[key] = holder
