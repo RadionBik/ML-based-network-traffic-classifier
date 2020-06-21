@@ -27,7 +27,6 @@ ease selecting of used features.
 * `datasets` contains utils to load/merge parsed `.csv` files, reassigns target classes (specific for my task).
 
 * `report.py` contains a class for evaluation of the classifiers, plotting confusion matrices and scores. 
-WARNING: is broken, subject for fixing in future releases.
 
 * `classifiers.py` contain the wrapper class ClassifierHolder that stores a model, its search space. 
 Extending with other algorithms is possible by updating the REGISTRED_CLASSES variable.
@@ -37,11 +36,7 @@ Extending with other algorithms is possible by updating the REGISTRED_CLASSES va
 * `pcap_files/` includes an example `.pcap` that is analyzed by the program modules by default. 
 Also contains task-specific pre-processing script.
 
-* `trained_classifiers/` folder is used for storage of trained classifier that can be used later for validations on different traffic or in the live mode (WARNING: not in use so far).
-
 * `csv_files/` stores outputs of `flow_parser.py`, includes task-specific script.
-
-* `figures/` this is where the output from the ClassifierEvaluator class is produced.  
 
 ## Module interfaces
 ### flow_parser.py
