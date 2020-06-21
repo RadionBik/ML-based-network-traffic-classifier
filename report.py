@@ -1,17 +1,18 @@
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, jaccard_score, f1_score, classification_report
 
 from classifiers import ClassifierHolder
-from feature_processing import Featurizer
 
 
 class Reporter:
-    def __init__(self, true, predicted, clf: ClassifierHolder, featurizer: Featurizer):
+    def __init__(self, true, predicted, clf: ClassifierHolder, target_classes: Optional[list] = None):
         self.true = true
         self.predicted = predicted
-        self._featurizer = featurizer
+        self.target_classes = target_classes
         self._classifier = clf
 
     def scores(self):
@@ -23,20 +24,20 @@ class Reporter:
 
     def clf_report(self):
         report = classification_report(self.true, self.predicted,
-                                       target_names=self._featurizer.target_encoder.classes_,
+                                       target_names=self.target_classes,
                                        digits=3,
                                        output_dict=True)
         return pd.DataFrame(report).T
 
     def conf_matrix(self, normalize=None):
         return pd.DataFrame(confusion_matrix(self.true, self.predicted, normalize=normalize),
-                            columns=self._featurizer.target_encoder.classes_,
-                            index=self._featurizer.target_encoder.classes_)
+                            columns=self.target_classes,
+                            index=self.target_classes)
 
     def plot_conf_matrix(self, normalize=None, figsize=(20, 20)):
 
         cm = self.conf_matrix(normalize).values
-        classes = self._featurizer.target_encoder.classes_
+        classes = self.target_classes
         fig, ax = plt.subplots(ncols=1, nrows=1, figsize=figsize)
 
         im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
