@@ -77,8 +77,11 @@ class DenseClassifier(BaseClassifier):
 
 
 class BiGRUClassifier(BaseClassifier):
-    def __init__(self, input_size, output_size, num_layers=2, hidden_size=40, dropout=0.1):
+    def __init__(self, input_size, output_size, num_layers=3, hidden_size=None, dropout=0.1):
         super().__init__()
+
+        if not hidden_size:
+            hidden_size = output_size
 
         self.gru = torch.nn.GRU(input_size,
                                 hidden_size,
@@ -98,6 +101,6 @@ class BiGRUClassifier(BaseClassifier):
         return self.fc(out)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.005)
         scheduler = ReduceLROnPlateau(optimizer)
         return [optimizer], [scheduler]
