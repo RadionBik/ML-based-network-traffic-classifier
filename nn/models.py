@@ -1,7 +1,7 @@
 import torch
 from pytorch_lightning import LightningModule
 from torch.nn import functional as F
-from torch.optim.lr_scheduler import CyclicLR, ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from report import Reporter
 
@@ -43,6 +43,9 @@ class BaseClassifier(LightningModule):
         predictions = torch.cat([x['predictions'] for x in outputs]).to('cpu').numpy()
         targets = torch.cat([x['targets'] for x in outputs]).to('cpu').numpy()
         rpt = Reporter(targets, predictions, self.__class__.__name__)
+        self.logger.experiment.log_image('confusion_matrix', rpt.plot_conf_matrix())
+
+        print(rpt.clf_report())
         logs = rpt.scores()
         logs.update({'test_loss': avg_loss})
         return {'test_loss': avg_loss, 'log': logs}
@@ -51,7 +54,6 @@ class BaseClassifier(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
         scheduler = ReduceLROnPlateau(optimizer)
         return [optimizer], [scheduler]
-
 
 
 class DenseClassifier(BaseClassifier):
@@ -77,7 +79,7 @@ class DenseClassifier(BaseClassifier):
 
 
 class BiGRUClassifier(BaseClassifier):
-    def __init__(self, input_size, output_size, num_layers=3, hidden_size=None, dropout=0.1):
+    def __init__(self, input_size, output_size, num_layers=3, hidden_size=None, dropout=0.1, bidirectional=True):
         super().__init__()
 
         if not hidden_size:
@@ -88,11 +90,12 @@ class BiGRUClassifier(BaseClassifier):
                                 num_layers=num_layers,
                                 batch_first=True,
                                 dropout=dropout,
-                                bidirectional=True)
+                                bidirectional=bidirectional)
 
         self.activation = torch.nn.LeakyReLU()
-        self.layer_norm = torch.nn.LayerNorm(2*hidden_size)
-        self.fc = torch.nn.Linear(2*hidden_size, output_size)
+        gru_out_size = 2*hidden_size if bidirectional else hidden_size
+        self.layer_norm = torch.nn.LayerNorm(gru_out_size)
+        self.fc = torch.nn.Linear(gru_out_size, output_size)
 
     def forward(self, x):
         gru_out, hidden_state =  self.gru(x.unsqueeze_(2))

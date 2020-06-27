@@ -5,14 +5,12 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 
-from classifiers import ClassifierHolder
-
 
 class Reporter:
     def __init__(self, true, predicted, classifier_name: str, target_classes: Optional[list] = None):
         self.true = true
         self.predicted = predicted
-        self.target_classes = target_classes
+        self.target_classes = target_classes if target_classes else list(range(max(true) + 1))
         self.classifier_name = classifier_name
 
     def scores(self):
@@ -36,7 +34,7 @@ class Reporter:
                             columns=self.target_classes,
                             index=self.target_classes)
 
-    def plot_conf_matrix(self, normalize=None, figsize=(20, 20)):
+    def plot_conf_matrix(self, normalize=None, figsize=(20, 20)) -> plt.figure:
 
         cm = self.conf_matrix(normalize).values
         classes = self.target_classes
@@ -65,3 +63,4 @@ class Reporter:
         ax.set_xlabel('Predicted label')
         # fig.tight_layout()
         plt.show()
+        return fig
