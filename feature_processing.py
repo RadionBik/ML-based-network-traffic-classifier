@@ -70,6 +70,7 @@ class Featurizer:
     def fit_transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         X_train = self.transformer.fit_transform(data)
         y_train = self.target_encoder.fit_transform(data[self.target_column])
+        logger.info(f'{X_train.shape[0]} train samples with {self.n_classes} classes')
         return X_train, y_train
 
     def transform(self, data: pd.DataFrame) -> np.ndarray:
@@ -83,6 +84,10 @@ class Featurizer:
 
     def encode(self, data: pd.DataFrame) -> np.ndarray:
         return self.target_encoder.transform(data[self.target_column])
+
+    @property
+    def n_classes(self):
+        return len(self.target_encoder.classes_)
 
 
 FEATURE_NAMES = (
