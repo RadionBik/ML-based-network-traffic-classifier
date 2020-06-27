@@ -3,30 +3,30 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix, jaccard_score, f1_score, classification_report
-
-from classifiers import ClassifierHolder
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 
 
 class Reporter:
-    def __init__(self, true, predicted, clf: ClassifierHolder, target_classes: Optional[list] = None):
+    def __init__(self, true, predicted, classifier_name: str, target_classes: Optional[list] = None):
         self.true = true
         self.predicted = predicted
-        self.target_classes = target_classes
-        self._classifier = clf
+        self.target_classes = target_classes if target_classes else list(range(max(true) + 1))
+        self.classifier_name = classifier_name
 
     def scores(self):
         return {
-            'Accuracy': jaccard_score(self.true, self.predicted, average='macro'),
+            'Accuracy': accuracy_score(self.true, self.predicted),
             'F1 macro': f1_score(self.true, self.predicted, average='macro'),
             'F1 weighted': f1_score(self.true, self.predicted, average='weighted')
         }
 
-    def clf_report(self):
+    def clf_report(self, as_dict=False):
         report = classification_report(self.true, self.predicted,
                                        target_names=self.target_classes,
                                        digits=3,
                                        output_dict=True)
+        if as_dict:
+            return report
         return pd.DataFrame(report).T
 
     def conf_matrix(self, normalize=None):
@@ -34,14 +34,14 @@ class Reporter:
                             columns=self.target_classes,
                             index=self.target_classes)
 
-    def plot_conf_matrix(self, normalize=None, figsize=(20, 20)):
+    def plot_conf_matrix(self, normalize=None, figsize=(20, 20)) -> plt.figure:
 
         cm = self.conf_matrix(normalize).values
         classes = self.target_classes
         fig, ax = plt.subplots(ncols=1, nrows=1, figsize=figsize)
 
         im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-        ax.set_title('CM of {} classifier'.format(self._classifier.name))
+        ax.set_title('CM of {} classifier'.format(self.classifier_name))
         fig.colorbar(im, aspect=30, shrink=0.8, ax=ax)
 
         tick_marks = np.arange(len(classes))
@@ -63,3 +63,4 @@ class Reporter:
         ax.set_xlabel('Predicted label')
         # fig.tight_layout()
         plt.show()
+        return fig
