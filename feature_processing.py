@@ -8,8 +8,9 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
-import settings
 from settings import TARGET_CLASS_COLUMN
+
+from raw_packets_nfplugin import raw_packets_matrix as RMI
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ def _safe_vector_getter(vector, indexer) -> Union[int, float]:
     try:
         return vector[indexer]
     except IndexError:
-        return 0
+        return np.nan
 
 
 def calc_parameter_stats(feature_slice, prefix, feature_name):
@@ -161,13 +162,13 @@ def _get_packet_features(raw_matrix):
     return packet_features
 
 
-def calc_raw_features(raw_matrix: np.ndarray) -> dict:
+def calc_raw_features(raw_matrix: np.ndarray, packet_limit) -> dict:
     """ estimates features for flow models that are used for data-augmentation purposes """
     iat_features = _get_iat(raw_matrix)
     packet_features = _get_packet_features(raw_matrix)
 
     features = {}
-    for index in range(settings.PACKET_LIMIT_PER_FLOW):
+    for index in range(packet_limit):
         features['raw_packet' + str(index)] = _safe_vector_getter(packet_features, index)
         features['raw_iat' + str(index)] = _safe_vector_getter(iat_features, index)
 
@@ -190,16 +191,3 @@ def calc_flow_features(raw_features: np.ndarray) -> dict:
 
     total_features = dict(**client_features, **server_features)
     return total_features
-
-
-class RawFeatureMatrixIndexes:
-    TIMESTAMP = 0
-    IP_LEN = 1
-    TRANSP_PAYLOAD = 2
-    TCP_FLAGS = 3
-    TCP_WINDOW = 4
-    IP_PROTO = 5
-    IS_CLIENT = 6
-
-
-RMI = RawFeatureMatrixIndexes

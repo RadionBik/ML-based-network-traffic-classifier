@@ -10,12 +10,12 @@ import settings
 
 @pytest.fixture
 def dataset():
-    return pd.read_csv(settings.TEST_STATIC_DIR / 'example_20packets.csv', na_filter='')
+    return pd.read_csv(settings.TEST_STATIC_DIR / 'example_20packets.csv', na_filter=False)
 
 
 @pytest.fixture
 def raw_dataset():
-    return pd.read_csv(settings.TEST_STATIC_DIR / 'raw_example_20packets.csv', na_filter='')
+    return pd.read_csv(settings.TEST_STATIC_DIR / 'raw_example_20packets.csv', na_filter=False)
 
 
 @pytest.fixture

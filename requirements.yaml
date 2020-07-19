@@ -29,6 +29,6 @@ dependencies:
   - cudatoolkit=10.2
   - pip:
     - pytorch-lightning
-    - nfstream==5.1.5
+    - nfstream==5.2.0
     - sh==1.13.1
     - pandarallel==1.4.8
