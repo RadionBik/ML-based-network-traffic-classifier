@@ -5,17 +5,18 @@ import numpy as np
 import pandas as pd
 from libKMCUDA import kmeans_cuda
 
-from settings import logger
+from settings import logger, BASE_DIR
 
 
 def plot_packets(packet_features):
     pd.DataFrame(packet_features).plot(kind='scatter', x=0, y=1, alpha=0.3, figsize=(12, 7), grid=True)
 
 
-def print_kmeans_mae(original, restored):
+def get_kmeans_mae(original, restored):
     s = np.abs(original - restored).sum()
     mae = np.abs(original - restored).mean()
     logger.info(f'MAE: {mae}, cumulative error: {s}')
+    return mae
 
 
 def drop_nan_packets(packet_features):
@@ -95,7 +96,7 @@ class PacketQuantizer:
     def evaluate(self, packet_features, restored):
         n_unique_clusters = len(self.cluster_centers_[~np.isnan(self.cluster_centers_)]) / 2
         logger.info(f'found {n_unique_clusters} unique clusters')
-        print_kmeans_mae(packet_features, restored)
+        get_kmeans_mae(packet_features, restored)
 
     def save_pretrained(self, save_directory):
         save_directory = pathlib.Path(save_directory)
@@ -110,15 +111,17 @@ class PacketQuantizer:
 def main():
     quantizer = PacketQuantizer()
     raw_csv_dir = pathlib.Path('/media/raid_store/pretrained_traffic/raw_csv_outer')
-    csv = next(raw_csv_dir.glob('*.csv'))
 
-    flow_limit = 500_000
-    for file_idx, csv in enumerate([csv]):
+    flow_limit = 300_000
+    for file_idx, csv in enumerate(raw_csv_dir.glob('*.csv')):
         logger.info(f'processing {csv}')
         reader = pd.read_csv(csv, chunksize=flow_limit, usecols=quantizer.raw_columns, dtype=np.float32)
         for batch, raw_packets in enumerate(reader):
             quantizer.fit(raw_packets)
-            quantizer.save_pretrained(f'quantizer_2^14_{csv.stem}_{batch}')
+            if batch % 10 == 0:
+                quantizer.save_pretrained(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_{batch}')
+
+        quantizer.save_pretrained(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_final')
 
 
 if __name__ == '__main__':
