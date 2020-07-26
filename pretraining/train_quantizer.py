@@ -3,7 +3,10 @@ import pathlib
 
 import numpy as np
 import pandas as pd
-from libKMCUDA import kmeans_cuda
+try:
+    from libKMCUDA import kmeans_cuda
+except ImportError:
+    pass
 
 from settings import logger, BASE_DIR
 
