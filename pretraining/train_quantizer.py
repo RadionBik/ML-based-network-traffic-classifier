@@ -24,9 +24,8 @@ def drop_nan_packets(packet_features):
 
 
 class PacketScaler:
-    def __init__(self, max_packet_len=1500, log_iat_limit=-6.):
+    def __init__(self, max_packet_len=1500):
         self.max_packet_len = max_packet_len
-        self.log_iat_limit = log_iat_limit
 
     def transform(self, packet_pairs):
         """
@@ -34,15 +33,18 @@ class PacketScaler:
         :return: transformed_packets (N, 2)
         """
         packet_pairs[:, 0] = packet_pairs[:, 0] / self.max_packet_len
-        # avoids warning and -inf values
-        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-5)
-        packet_pairs[:, 1][zero_iats] = self.log_iat_limit
+        # avoids warning and -inf values. the scale here is in microseconds (?)
+        zero_iats = np.isclose(packet_pairs[:, 1], 0.)
+        packet_pairs[:, 1][zero_iats] = 0
         packet_pairs[:, 1][~zero_iats] = np.log10(packet_pairs[:, 1][~zero_iats])
         return packet_pairs
 
     def inverse_transform(self, packet_pairs):
         packet_pairs[:, 0] = packet_pairs[:, 0] * self.max_packet_len
-        packet_pairs[:, 1] = 10 ** packet_pairs[:, 1]
+        # to correctly rescale, we need to know which were initially zeros
+        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-8)
+        packet_pairs[:, 1][zero_iats] = 0
+        packet_pairs[:, 1][~zero_iats] = 10 ** packet_pairs[:, 1][~zero_iats]
         return packet_pairs
 
 

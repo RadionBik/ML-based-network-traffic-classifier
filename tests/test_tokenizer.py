@@ -18,7 +18,7 @@ def test_transformer():
     transformer = PacketScaler()
     transf_packets = transformer.transform(packets.copy())
     reverted_packets = transformer.inverse_transform(transf_packets)
-    assert np.isclose(packets, reverted_packets, atol=10e-6).all()
+    assert np.isclose(packets, reverted_packets, atol=10e-9).all()
 
 
 def test_from_pretrained():
