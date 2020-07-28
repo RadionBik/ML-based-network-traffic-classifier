@@ -1,3 +1,4 @@
+import argparse
 import json
 import pathlib
 
@@ -114,10 +115,18 @@ class PacketQuantizer:
 
 
 def main():
-    quantizer = PacketQuantizer()
-    raw_csv_dir = pathlib.Path('/media/raid_store/pretrained_traffic/raw_csv_outer')
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s", "--source",
+        help="source folder with .csv files",
+        default='/media/raid_store/pretrained_traffic/raw_csv_quantizer'
+    )
+    args = parser.parse_args()
 
-    flow_limit = 300_000
+    quantizer = PacketQuantizer()
+    raw_csv_dir = pathlib.Path(args.source)
+
+    flow_limit = 1_000_000
     for file_idx, csv in enumerate(raw_csv_dir.glob('*.csv')):
         logger.info(f'processing {csv}')
         reader = pd.read_csv(csv, chunksize=flow_limit, usecols=quantizer.raw_columns, dtype=np.float32)
