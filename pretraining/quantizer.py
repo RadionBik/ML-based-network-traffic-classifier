@@ -10,7 +10,7 @@ from sklearn.cluster import KMeans
 try:
     from libKMCUDA import kmeans_cuda
 except ImportError:
-    pass
+    print('calling fit() for PacketQuantizer is not possible, kmcuda must be installed')
 
 from settings import logger, BASE_DIR
 
@@ -63,7 +63,7 @@ class PacketScaler:
     def inverse_transform(self, packet_pairs):
         packet_pairs[:, 0] = packet_pairs[:, 0] * self.max_packet_len
         # to correctly rescale, we need to know which were initially zeros
-        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-4)
+        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-3)
         packet_pairs[:, 1][zero_iats] = 0
         packet_pairs[:, 1][~zero_iats] = 10 ** packet_pairs[:, 1][~zero_iats]
         return packet_pairs
@@ -71,7 +71,7 @@ class PacketScaler:
 
 class PacketQuantizer:
     """
-    You can init PacketQuantizer only after loading from checkpoint
+    You can init PacketQuantizer for transform() and inverse_transform() only after loading from checkpoint
     """
     def __init__(self,
                  n_clusters=16384,
@@ -140,7 +140,7 @@ class PacketQuantizer:
         kmeans = init_sklearn_kmeans_from_checkpoint(checkpoint_path)
         return cls(n_clusters=kmeans.n_clusters, kmeans_clusterizer=kmeans, *args, **kwargs)
 
-    def transform(self, raw_batch):
+    def transform(self, raw_packet_batch):
         """ transforms raw packet matrix of size (n_flows, packets*2)
         (where 2 is due to features - PS, IAT) to packet clusters matrix
         of size (n_flows, packets). Non-packet values in the source matrix
@@ -148,8 +148,12 @@ class PacketQuantizer:
         """
         if self.kmeans is None:
             raise Exception('the class must be init with an sklearn KMeans instance first!')
-        # assert proper column ordering with packet features
-        raw_packet_batch = raw_batch[self.raw_columns].values
+
+        if isinstance(raw_packet_batch, pd.DataFrame):
+            # assert correct order
+            raw_packet_batch = raw_packet_batch[self.raw_columns].values
+
+        batch_size = raw_packet_batch.shape[0]
         # reshape to form (n_samples, n_features) for PacketScaler and KMeans
         raw_packet_batch = raw_packet_batch.reshape(-1, 2)
         non_packet_mask = np.isnan(raw_packet_batch) | np.isinf(raw_packet_batch)
@@ -160,9 +164,19 @@ class PacketQuantizer:
         non_packet_cluster_mask = non_packet_mask.sum(axis=1).astype(bool)
         clusters[non_packet_cluster_mask] = -1
         # reshape back to batch form
-        clusters = clusters.reshape(raw_batch.shape[0], -1)
+        clusters = clusters.reshape(batch_size, -1)
         return clusters
 
+    def inverse_transform(self, cluster_batch):
+        flat_clusters = cluster_batch.flatten()
+        non_packet_cluster_mask = flat_clusters == -1
+        # assign temp cluster value
+        flat_clusters[non_packet_cluster_mask] = 0
+        reverted_packets = self.scaler.inverse_transform(self.kmeans.cluster_centers_[flat_clusters])
+        # make NaN non-packets
+        reverted_packets[non_packet_cluster_mask] = np.nan
+        reverted_packets = reverted_packets.reshape(-1, cluster_batch.shape[1] * 2)
+        return reverted_packets
 
 
 def main():
