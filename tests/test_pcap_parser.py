@@ -8,10 +8,9 @@ import flow_parser
 import settings
 
 
-def test_feature_persistence():
-    pcap_filename = (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
-    features = flow_parser.parse_features_to_dataframe(pcap_filename)
-    features2 = flow_parser.parse_features_to_dataframe(pcap_filename)
+def test_feature_persistence(pcap_example_path):
+    features = flow_parser.parse_features_to_dataframe(pcap_example_path)
+    features2 = flow_parser.parse_features_to_dataframe(pcap_example_path)
     assert features.equals(features2)
 
 
@@ -21,9 +20,8 @@ def _serialize_tcp_flag(x):
     return x
 
 
-def test_parser_output(dataset):
-    pcap_filename = (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
-    parsed_features = flow_parser.parse_features_to_dataframe(pcap_filename, online_mode=False)
+def test_parser_output(dataset, pcap_example_path):
+    parsed_features = flow_parser.parse_features_to_dataframe(pcap_example_path, online_mode=False)
     parsed_features = parsed_features.apply(_serialize_tcp_flag, axis=1)
     dataset = dataset.astype(parsed_features.dtypes)
     pd.testing.assert_frame_equal(parsed_features, dataset,
@@ -32,9 +30,8 @@ def test_parser_output(dataset):
                                   check_categorical=False)
 
 
-def test_raw_parser_output(raw_dataset):
-    pcap_filename = (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
-    parsed_features = flow_parser.parse_features_to_dataframe(pcap_filename,
+def test_raw_parser_output(raw_dataset, pcap_example_path):
+    parsed_features = flow_parser.parse_features_to_dataframe(pcap_example_path,
                                                               derivative_features=False,
                                                               raw_features=20,
                                                               online_mode=False)

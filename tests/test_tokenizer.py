@@ -1,7 +1,9 @@
 import numpy as np
 
+import flow_parser
 from pretraining import tokenizer
-from pretraining.train_quantizer import PacketScaler
+from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
+
 import settings
 
 np.random.seed(1)
@@ -21,5 +23,20 @@ def test_transformer():
     assert np.isclose(packets, reverted_packets, atol=10e-9).all()
 
 
-def test_from_pretrained():
-    q = tokenizer.PacketTokenizer.from_pretrained(settings.TEST_STATIC_DIR)
+def test_loading_quantizer(quantizer_checkpoint):
+    q = init_sklearn_kmeans_from_checkpoint(quantizer_checkpoint)
+    cluster = q.predict(np.array([[-1, 0]]))
+    assert cluster[0] == 8
+
+
+def test_quantizer_transform(quantizer_checkpoint, pcap_example_path):
+    raw_dataset = flow_parser.parse_features_to_dataframe(pcap_example_path,
+                                                          derivative_features=False,
+                                                          raw_features=20,
+                                                          online_mode=False)
+    q = PacketQuantizer.from_checkpoint(quantizer_checkpoint, flow_size=20)
+    raw_packets = raw_dataset.filter(regex='raw')
+    quantized = q.transform(raw_packets)
+    assert quantized.shape == (raw_dataset.shape[0], 20)
+    assert np.isnan(raw_packets.values).sum() == (quantized == -1).sum() * 2
+

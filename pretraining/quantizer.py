@@ -1,9 +1,12 @@
 import argparse
 import json
 import pathlib
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
+
 try:
     from libKMCUDA import kmeans_cuda
 except ImportError:
@@ -24,7 +27,21 @@ def get_kmeans_mae(original, restored):
 
 
 def drop_nan_packets(packet_features):
-    return packet_features[~np.isnan(packet_features)].reshape(-1, 2)
+    return packet_features[~np.isnan(packet_features) & ~np.isinf(packet_features)].reshape(-1, 2)
+
+
+def init_sklearn_kmeans_from_checkpoint(checkpoint_path):
+    checkpoint_path = pathlib.Path(checkpoint_path)
+    with open(checkpoint_path / 'clusters.json', 'rb') as jf:
+        clusters = np.array(json.load(jf))
+
+    clusters = drop_nan_packets(clusters)
+    # make KMeans think it was fitted
+    quantizer = KMeans(n_clusters=clusters.shape[0])
+    quantizer._n_threads = 1
+    quantizer.cluster_centers_ = clusters
+    logger.info(f'init sklearn KMeans from checkpoint: {checkpoint_path}')
+    return quantizer
 
 
 class PacketScaler:
@@ -46,15 +63,22 @@ class PacketScaler:
     def inverse_transform(self, packet_pairs):
         packet_pairs[:, 0] = packet_pairs[:, 0] * self.max_packet_len
         # to correctly rescale, we need to know which were initially zeros
-        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-8)
+        zero_iats = np.isclose(packet_pairs[:, 1], 0., atol=1e-4)
         packet_pairs[:, 1][zero_iats] = 0
         packet_pairs[:, 1][~zero_iats] = 10 ** packet_pairs[:, 1][~zero_iats]
         return packet_pairs
 
 
 class PacketQuantizer:
-    def __init__(self, n_cluster=16384, flow_size=128, packet_scaler=PacketScaler):
-        self.n_clusters = n_cluster
+    """
+    You can init PacketQuantizer only after loading from checkpoint
+    """
+    def __init__(self,
+                 n_clusters=16384,
+                 flow_size=128,
+                 packet_scaler=PacketScaler,
+                 kmeans_clusterizer: Optional[KMeans] = None):
+        self.n_clusters = n_clusters
         # hard-coded to the expected dataframe format (as in feature_processing.py)
         self.iat_columns = [f'raw_iat{index}' for index in range(flow_size)]
         self.packet_columns = [f'raw_packet{index}' for index in range(flow_size)]
@@ -63,25 +87,23 @@ class PacketQuantizer:
                             for feature in ['packet', 'iat']
                             ]
         self.scaler = packet_scaler()
-        self.cluster_centers_ = None
-
-    def _transform_packets(self, raw_batch, filter_single_packet_flows=False):
-        if filter_single_packet_flows:
-            # do not consider single-packet flows
-            raw_batch = raw_batch[raw_batch.raw_packet1 != 0]
-        packet_features = raw_batch[self.raw_columns].values.reshape(-1, 2)
-        return packet_features
+        self._cluster_centers = None
+        self.kmeans = kmeans_clusterizer
 
     def fit(self, raw_batch):
         """
         https://github.com/src-d/kmcuda#python-api
+        due to performance reasons, uses kmcuda instead of sklearn's KMeans.
         :param raw_batch:
         :return:
         """
-        packet_features = self._transform_packets(raw_batch, filter_single_packet_flows=True)
+        # do not consider single-packet flows
+        raw_batch = raw_batch[raw_batch.raw_packet1 != 0]
+        # form matrix (n_packet x (packet_size, IAT))
+        packet_features = raw_batch[self.raw_columns].values.reshape(-1, 2)
         # omit non_packet values
         packet_features = drop_nan_packets(packet_features)
-        init_clusters = "k-means++" if self.cluster_centers_ is None else self.cluster_centers_
+        init_clusters = "k-means++" if self._cluster_centers is None else self._cluster_centers
         logger.info('fitting on {} packets, init clusters from data: {}'.format(packet_features.shape[0],
                                                                                 isinstance(init_clusters, str)))
         packet_features = self.scaler.transform(packet_features)
@@ -96,22 +118,51 @@ class PacketQuantizer:
             average_distance=False,
             seed=1, device=0, verbosity=1
         )
-        self.cluster_centers_ = cluster_centers_
-        self.evaluate(packet_features, cluster_centers_[assignments])
+        self._cluster_centers = cluster_centers_
+        self._evaluate(packet_features, cluster_centers_[assignments])
 
-    def evaluate(self, packet_features, restored):
-        n_unique_clusters = len(self.cluster_centers_[~np.isnan(self.cluster_centers_)]) / 2
+    def _evaluate(self, packet_features, restored):
+        n_unique_clusters = len(self._cluster_centers[~np.isnan(self._cluster_centers)]) / 2
         logger.info(f'found {n_unique_clusters} unique clusters')
         get_kmeans_mae(packet_features, restored)
 
-    def save_pretrained(self, save_directory):
+    def save_checkpoint(self, save_directory):
         save_directory = pathlib.Path(save_directory)
         save_directory.mkdir(exist_ok=True)
         quantizer_path = save_directory / 'clusters.json'
         with open(quantizer_path, 'w') as qf:
-            json.dump(self.cluster_centers_.tolist(), qf)
+            json.dump(self._cluster_centers.tolist(), qf)
         logger.info(f'saving checkpoint to {quantizer_path}')
         return quantizer_path.as_posix()
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint_path, *args, **kwargs):
+        kmeans = init_sklearn_kmeans_from_checkpoint(checkpoint_path)
+        return cls(n_clusters=kmeans.n_clusters, kmeans_clusterizer=kmeans, *args, **kwargs)
+
+    def transform(self, raw_batch):
+        """ transforms raw packet matrix of size (n_flows, packets*2)
+        (where 2 is due to features - PS, IAT) to packet clusters matrix
+        of size (n_flows, packets). Non-packet values in the source matrix
+        MUST BE NaN, and in the cluster matrix they correspond to -1.
+        """
+        if self.kmeans is None:
+            raise Exception('the class must be init with an sklearn KMeans instance first!')
+        # assert proper column ordering with packet features
+        raw_packet_batch = raw_batch[self.raw_columns].values
+        # reshape to form (n_samples, n_features) for PacketScaler and KMeans
+        raw_packet_batch = raw_packet_batch.reshape(-1, 2)
+        non_packet_mask = np.isnan(raw_packet_batch) | np.isinf(raw_packet_batch)
+        # temp fill to allow for predicting
+        raw_packet_batch[non_packet_mask] = 0
+        clusters = self.kmeans.predict(self.scaler.transform(raw_packet_batch))
+        # set non_packet clusters to NaN
+        non_packet_cluster_mask = non_packet_mask.sum(axis=1).astype(bool)
+        clusters[non_packet_cluster_mask] = -1
+        # reshape back to batch form
+        clusters = clusters.reshape(raw_batch.shape[0], -1)
+        return clusters
+
 
 
 def main():
@@ -123,7 +174,7 @@ def main():
     )
     args = parser.parse_args()
 
-    quantizer = PacketQuantizer()
+    quantizer = PacketQuantizer(n_clusters=16384, flow_size=128)
     raw_csv_dir = pathlib.Path(args.source)
 
     flow_limit = 1_000_000
@@ -133,10 +184,11 @@ def main():
         for batch, raw_packets in enumerate(reader):
             quantizer.fit(raw_packets)
             if batch % 10 == 0:
-                quantizer.save_pretrained(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_{batch}')
+                quantizer.save_checkpoint(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_{batch}')
 
-        quantizer.save_pretrained(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_final')
+        quantizer.save_checkpoint(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_final')
 
 
 if __name__ == '__main__':
     main()
+

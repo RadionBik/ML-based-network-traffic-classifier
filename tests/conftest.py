@@ -48,3 +48,13 @@ def quantized_packets():
     with open(settings.TEST_STATIC_DIR / 'quantized_pkts.json', 'r') as js:
         pkts = json.load(js)
     return np.array(pkts).reshape(-1, 20)
+
+
+@pytest.fixture
+def quantizer_checkpoint():
+    return settings.TEST_STATIC_DIR
+
+
+@pytest.fixture
+def pcap_example_path():
+    return (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
