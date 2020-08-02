@@ -89,6 +89,7 @@ class PacketQuantizer:
         self.scaler = packet_scaler()
         self._cluster_centers = None
         self.kmeans = kmeans_clusterizer
+        self.non_packet_value = -1
 
     def fit(self, raw_batch):
         """
@@ -162,14 +163,14 @@ class PacketQuantizer:
         clusters = self.kmeans.predict(self.scaler.transform(raw_packet_batch))
         # set non_packet clusters to NaN
         non_packet_cluster_mask = non_packet_mask.sum(axis=1).astype(bool)
-        clusters[non_packet_cluster_mask] = -1
+        clusters[non_packet_cluster_mask] = self.non_packet_value
         # reshape back to batch form
         clusters = clusters.reshape(batch_size, -1)
         return clusters
 
     def inverse_transform(self, cluster_batch):
         flat_clusters = cluster_batch.flatten()
-        non_packet_cluster_mask = flat_clusters == -1
+        non_packet_cluster_mask = flat_clusters == self.non_packet_value
         # assign temp cluster value
         flat_clusters[non_packet_cluster_mask] = 0
         reverted_packets = self.scaler.inverse_transform(self.kmeans.cluster_centers_[flat_clusters])

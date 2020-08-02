@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 import feature_processing
+import flow_parser
 import settings
 
 
@@ -58,3 +59,12 @@ def quantizer_checkpoint():
 @pytest.fixture
 def pcap_example_path():
     return (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
+
+
+@pytest.fixture
+def raw_features(pcap_example_path):
+    return flow_parser.parse_features_to_dataframe(pcap_example_path,
+                                                   derivative_features=False,
+                                                   raw_features=20,
+                                                   online_mode=False
+                                                   ).filter(regex='raw')
