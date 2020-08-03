@@ -1,11 +1,10 @@
 import json
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 import feature_processing
 import flow_parser
-import settings
 
 
 def test_feature_persistence(pcap_example_path):
@@ -35,8 +34,7 @@ def test_raw_parser_output(raw_dataset, pcap_example_path):
                                                               derivative_features=False,
                                                               raw_features=20,
                                                               online_mode=False)
-    parsed_features = parsed_features.filter(regex='raw').fillna(0)
-    raw_dataset = raw_dataset.filter(regex='raw')
+    parsed_features = parsed_features.filter(regex='raw')
     pd.testing.assert_frame_equal(parsed_features, raw_dataset,
                                   check_less_precise=2,
                                   check_like=True,

@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 
 import feature_processing
-import flow_parser
 import settings
 
 
@@ -15,8 +14,15 @@ def dataset():
 
 
 @pytest.fixture
-def raw_dataset():
-    return pd.read_csv(settings.TEST_STATIC_DIR / 'raw_example_20packets.csv', na_filter=False)
+def raw_dataset_folder():
+    return settings.TEST_STATIC_DIR / 'raw_csv'
+
+
+@pytest.fixture
+def raw_dataset(raw_dataset_folder):
+    return pd.read_csv(raw_dataset_folder / 'example_raw_20packets.csv', na_filter=False).\
+        filter(regex='raw').\
+        astype(np.float64)
 
 
 @pytest.fixture
@@ -53,18 +59,9 @@ def quantized_packets():
 
 @pytest.fixture
 def quantizer_checkpoint():
-    return settings.TEST_STATIC_DIR
+    return settings.TEST_STATIC_DIR / 'quantizer_checkpoint'
 
 
 @pytest.fixture
 def pcap_example_path():
     return (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
-
-
-@pytest.fixture
-def raw_features(pcap_example_path):
-    return flow_parser.parse_features_to_dataframe(pcap_example_path,
-                                                   derivative_features=False,
-                                                   raw_features=20,
-                                                   online_mode=False
-                                                   ).filter(regex='raw')
