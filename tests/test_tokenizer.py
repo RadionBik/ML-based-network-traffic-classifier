@@ -1,9 +1,9 @@
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pretraining.tokenizer import PacketTokenizer
-from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
 from pretraining.dataset import FlowDataset, FlowCollator
+from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
+from pretraining.tokenizer import PacketTokenizer
 
 np.random.seed(1)
 
@@ -63,14 +63,9 @@ def test_tokenize_detokenize(quantizer_checkpoint, raw_dataset):
     assert _estimate_normalized_packet_difference(raw_dataset.values, decoded) < 0.0003
 
 
-from transformers.data.data_collator import default_data_collator
-
-
 def test_flow_loader(raw_dataset_folder, quantizer_checkpoint):
     tokenizer = PacketTokenizer.from_pretrained(quantizer_checkpoint, flow_size=20)
     ds = FlowDataset(tokenizer, folder_path=raw_dataset_folder)
-    loader = DataLoader(ds, batch_size=4, collate_fn=FlowCollator(tokenizer))
-    # print(len(loader))
+    loader = DataLoader(ds, batch_size=4, collate_fn=FlowCollator(tokenizer), drop_last=True)
     for flow in loader:
-        print(flow.keys(), flow['input_ids'].shape)
-    pass
+        assert flow['input_ids'].shape == (4, 22)
