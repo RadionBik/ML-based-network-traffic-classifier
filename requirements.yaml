@@ -32,3 +32,4 @@ dependencies:
     - nfstream==5.2.0
     - sh==1.13.1
     - pandarallel==1.4.8
+    - transformers==3.0.2

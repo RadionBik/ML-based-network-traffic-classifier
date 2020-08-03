@@ -1,15 +1,14 @@
 import numpy as np
+from torch.utils.data import DataLoader
 
-import flow_parser
-from pretraining import tokenizer
+from pretraining.tokenizer import PacketTokenizer
 from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
-
-import settings
+from pretraining.dataset import FlowDataset, FlowCollator
 
 np.random.seed(1)
 
 
-def test_transformer():
+def test_packet_scaler():
     n_packets = 1000
     pack_lens = np.random.uniform(-1500, 1500, n_packets)
     iats = np.random.gamma(0, scale=1e4, size=n_packets)
@@ -29,24 +28,49 @@ def test_loading_quantizer(quantizer_checkpoint):
     assert cluster[0] == 8
 
 
-def test_quantizer_transform(quantizer_checkpoint, pcap_example_path):
-    raw_dataset = flow_parser.parse_features_to_dataframe(pcap_example_path,
-                                                          derivative_features=False,
-                                                          raw_features=20,
-                                                          online_mode=False)
-    q = PacketQuantizer.from_checkpoint(quantizer_checkpoint, flow_size=20)
+def _estimate_normalized_packet_difference(raw_packets, reverted_packets):
+    norm_diff = (reverted_packets - raw_packets) / reverted_packets
+    norm_diff[np.isnan(norm_diff) | np.isinf(norm_diff)] = 0
+    return norm_diff.mean()
 
+
+def test_quantizer_transform(quantizer_checkpoint, raw_dataset):
+
+    q = PacketQuantizer.from_checkpoint(quantizer_checkpoint, flow_size=20)
     # assert proper column ordering with packet features
-    raw_packets = raw_dataset.filter(regex='raw')[q.raw_columns].values
+    raw_packets = raw_dataset[q.raw_columns].values
     quantized = q.transform(raw_packets)
     assert quantized.shape == (raw_dataset.shape[0], 20)
     assert np.isnan(raw_packets).sum() == (quantized == -1).sum() * 2
 
+    # test invariance
+    assert np.isclose(quantized, q.transform(raw_packets)).all()
+
+    # test inverting
     reverted_packets = q.inverse_transform(quantized)
     assert reverted_packets.shape == raw_packets.shape
     assert np.isnan(reverted_packets).sum() == np.isnan(raw_packets).sum()
 
-    norm_diff = (reverted_packets - raw_packets) / reverted_packets
-    norm_diff[np.isnan(norm_diff) | np.isinf(norm_diff)] = 0
-    mean_diff = norm_diff.mean()
-    assert mean_diff < 0.0003
+    assert _estimate_normalized_packet_difference(raw_packets, reverted_packets) < 0.0003
+
+
+def test_tokenize_detokenize(quantizer_checkpoint, raw_dataset):
+    tokenizer = PacketTokenizer.from_pretrained(quantizer_checkpoint)
+    encoded = tokenizer.batch_encode_plus(raw_dataset)
+    tokens = encoded['input_ids']
+    # since the model limit 128 > 20 in raw_features, we do not expect truncating
+    decoded = tokenizer.batch_decode(tokens)
+    assert _estimate_normalized_packet_difference(raw_dataset.values, decoded) < 0.0003
+
+
+from transformers.data.data_collator import default_data_collator
+
+
+def test_flow_loader(raw_dataset_folder, quantizer_checkpoint):
+    tokenizer = PacketTokenizer.from_pretrained(quantizer_checkpoint, flow_size=20)
+    ds = FlowDataset(tokenizer, folder_path=raw_dataset_folder)
+    loader = DataLoader(ds, batch_size=4, collate_fn=FlowCollator(tokenizer))
+    # print(len(loader))
+    for flow in loader:
+        print(flow.keys(), flow['input_ids'].shape)
+    pass

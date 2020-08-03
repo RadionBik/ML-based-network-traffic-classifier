@@ -31,3 +31,7 @@ csv_files
 bin
 *.pcap
 !pcap_files/example.pcap
+
+# pretraining artifacts
+trial_txt_gpt2
+trained_quantizers
