@@ -5,8 +5,9 @@ from functools import lru_cache
 from typing import Dict, List
 
 import pandas as pd
+import numpy as np
 import torch
-from torch.utils.data.dataset import IterableDataset
+from torch.utils.data.dataset import IterableDataset, Dataset
 from transformers import BatchEncoding
 import sh
 
@@ -14,7 +15,7 @@ from settings import logger
 from .tokenizer import PacketTokenizer
 
 
-class FlowDataset(IterableDataset):
+class FlowIterDataset(IterableDataset):
 
     def __init__(self, tokenizer: PacketTokenizer, folder_path: str, train_mode=True):
         assert os.path.isdir(folder_path)
@@ -35,8 +36,8 @@ class FlowDataset(IterableDataset):
                                  usecols=self.tokenizer.packet_quantizer.raw_columns,
                                  dtype=float)
             for raw_flow in reader:
-                # skip single-packet flows
-                if self.train_mode and pd.isna(raw_flow.raw_packet1).all():
+                # skip 1-packet and empty flows
+                if self.train_mode and pd.isna(raw_flow.iloc[:, 3]).any():
                     continue
 
                 encoded = self.tokenizer.batch_encode_plus(raw_flow,
@@ -54,6 +55,37 @@ class FlowDataset(IterableDataset):
             # do not count .csv header
             total += int(found_lines) - 1
         return total
+
+
+class FlowDataset(Dataset):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, train_mode=True):
+        assert os.path.isdir(folder_path)
+        # TODO feature caching, multiple workers?, filter out one-packet flows
+
+        self.source_files = list(pathlib.Path(folder_path).glob('*.csv'))
+        logger.info("initializing dataset from %s with %s files", folder_path, len(self.source_files))
+
+        self.tokenizer = tokenizer
+        self.train_mode = train_mode
+
+        raw_flows = pd.concat((pd.read_csv(csv, usecols=self.tokenizer.packet_quantizer.raw_columns, dtype=np.float32)
+                               for csv in self.source_files), ignore_index=True)
+
+        raw_flows = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns].sample(frac=1, random_state=1)
+
+        logger.info('concatenated dataframes within the folder')
+        # skip 1-packet and empty flows
+        raw_flows.dropna(axis=0, subset=['raw_packet0', 'raw_packet1'], inplace=True, how='any')
+        self.raw_flows = raw_flows.values
+        logger.info('initialized dataset')
+
+    def __len__(self):
+        return len(self.raw_flows)
+
+    def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
+        return self.tokenizer.batch_encode_plus(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                add_special_tokens=True,
+                                                return_attention_mask=True).data
 
 
 @dataclass
@@ -85,4 +117,3 @@ class FlowCollator:
             "attention_mask": attention_masks,
             "labels": labels,
         }
-

@@ -34,7 +34,7 @@ from transformers import (
     set_seed, AutoModelForCausalLM,
 )
 
-from pretraining.dataset import FlowDataset, FlowCollator
+from pretraining.dataset import FlowCollator, FlowDataset
 from pretraining.tokenizer import PacketTokenizer
 from pretraining.trainer import SeqTrainer
 from settings import BASE_DIR
