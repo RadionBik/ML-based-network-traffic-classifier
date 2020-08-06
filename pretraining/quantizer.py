@@ -132,7 +132,11 @@ class PacketQuantizer:
         save_directory.mkdir(exist_ok=True)
         quantizer_path = save_directory / 'clusters.json'
         with open(quantizer_path, 'w') as qf:
-            json.dump(self._cluster_centers.tolist(), qf)
+            try:
+                json.dump(self._cluster_centers.tolist(), qf)
+            except AttributeError:
+                # account for the case when saving not during training
+                json.dump(self.kmeans.cluster_centers_.tolist(), qf)
         logger.info(f'saving checkpoint to {quantizer_path}')
         return quantizer_path.as_posix()
 

@@ -1,3 +1,5 @@
+import pathlib
+
 import numpy as np
 from torch.utils.data import DataLoader
 
@@ -26,6 +28,12 @@ def test_loading_quantizer(quantizer_checkpoint):
     q = init_sklearn_kmeans_from_checkpoint(quantizer_checkpoint)
     cluster = q.predict(np.array([[-1, 0]]))
     assert cluster[0] == 8
+
+
+def test_saving_tokenizer(quantizer_checkpoint):
+    q = PacketTokenizer.from_pretrained(quantizer_checkpoint)
+    q.save_pretrained('/tmp/')
+    assert pathlib.Path('/tmp/clusters.json').is_file()
 
 
 def _estimate_normalized_packet_difference(raw_packets, reverted_packets):
