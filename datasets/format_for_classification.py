@@ -4,8 +4,9 @@ import pathlib
 
 import pandas as pd
 
-from settings import TARGET_CLASS_COLUMN, PCAP_OUTPUT_DIR, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
 from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
+import feature_processing as feat_proc
+from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
 
 """ task-specific module, provided for the sake of reproducibility """
 
@@ -14,6 +15,14 @@ logger = logging.getLogger(__name__)
 # signalling protos are common among all devices and it doesn't make sense to treat them separately
 COMMON_PROTOCOLS = ['DNS', 'NTP', 'STUN']
 GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSDP']
+
+
+def read_dataset(filename) -> pd.DataFrame:
+    """ a simple wrapper for pandas """
+    # cont_columns = feat_proc.CONTINUOUS_NAMES+feat_proc.generate_raw_feature_names()
+    dataset = pd.read_csv(filename, na_filter=True).fillna(0)
+    logger.info(f'read {len(dataset)} flows from {filename}')
+    return dataset
 
 
 def _load_parsed_results(dir_with_parsed_csvs=None):
@@ -27,7 +36,7 @@ def _load_parsed_results(dir_with_parsed_csvs=None):
 
     iot_categories = set(item.category for item in IOT_DEVICES)
     for csv_file in parsed_csvs:
-        traffic_df = pd.read_csv(csv_file, na_filter='')
+        traffic_df = read_dataset(csv_file)
         if csv_file.name.startswith('train'):
             base_name = csv_file.name.split('train_')[-1]
         elif csv_file.name.startswith('val'):
@@ -115,10 +124,14 @@ def save_dataset(dataset, save_to=None):
     return save_to
 
 
-def read_dataset(filename):
-    """ a simple wrapper for pandas """
-    dataset = pd.read_csv(filename, na_filter='')
-    logger.info(f'read {len(dataset)} flows from {filename}')
+def delete_duplicating_flows(dataset):
+    def to_session_id(flow_id):
+        proto, conn1, conn2 = flow_id.split(' ')
+        return proto, frozenset([conn1, conn2])
+
+    dataset['session_id'] = dataset['flow_id'].apply(to_session_id)
+    dataset = dataset.drop_duplicates(subset=['session_id'])
+    logger.info(f'{dataset.shape[0]} flows left after deduplication')
     return dataset
 
 
@@ -141,5 +154,7 @@ def prepare_data(pcap_dir):
 if __name__ == '__main__':
     train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv')
     eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv')
-    total_df = prune_targets(pd.concat([train_df, eval_df], ignore_index=True))
+    total_df = pd.concat([train_df, eval_df], ignore_index=True)
+    total_df = delete_duplicating_flows(total_df)
+    total_df = prune_targets(total_df, lower_bound=50)
     save_dataset(total_df)
