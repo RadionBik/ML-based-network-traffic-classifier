@@ -103,10 +103,13 @@ def save_dataset(dataset, save_to=None):
         repo = Repo(BASE_DIR)
         return repo.head.commit.hexsha
 
-    df_hash = _hash_df(dataset)
-    head_hash = _get_current_commit_hash()
+    try:
+        df_hash = _get_current_commit_hash()
+    except Exception:
+        df_hash = _hash_df(dataset)
+
     if save_to is None:
-        save_to = BASE_DIR / f'datasets/dataset_git_{head_hash}_content_{df_hash}.csv'
+        save_to = BASE_DIR / f'datasets/dataset_{df_hash}.csv'
     dataset.to_csv(save_to, index=False)
     logger.info(f'saved dataset to {save_to}')
     return save_to
