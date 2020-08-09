@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 
+from feature_processing import generate_raw_feature_names
+
 try:
     from libKMCUDA import kmeans_cuda
 except ImportError:
@@ -73,6 +75,7 @@ class PacketQuantizer:
     """
     You can init PacketQuantizer for transform() and inverse_transform() only after loading from checkpoint
     """
+
     def __init__(self,
                  n_clusters=16384,
                  flow_size=128,
@@ -80,12 +83,9 @@ class PacketQuantizer:
                  kmeans_clusterizer: Optional[KMeans] = None):
         self.n_clusters = n_clusters
         # hard-coded to the expected dataframe format (as in feature_processing.py)
-        self.iat_columns = [f'raw_iat{index}' for index in range(flow_size)]
-        self.packet_columns = [f'raw_packet{index}' for index in range(flow_size)]
-        self.raw_columns = [f'raw_{feature}{index}'
-                            for index in range(flow_size)
-                            for feature in ['packet', 'iat']
-                            ]
+        self.iat_columns = generate_raw_feature_names(flow_size, base_features=('iat',))
+        self.packet_columns = generate_raw_feature_names(flow_size, base_features=('packet',))
+        self.raw_columns = generate_raw_feature_names(flow_size)
         self.scaler = packet_scaler()
         self._cluster_centers = None
         self.kmeans = kmeans_clusterizer
@@ -203,11 +203,11 @@ def main():
         for batch, raw_packets in enumerate(reader):
             quantizer.fit(raw_packets)
             if batch % 10 == 0:
-                quantizer.save_checkpoint(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_{batch}')
+                quantizer.save_checkpoint(
+                    BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_{batch}')
 
         quantizer.save_checkpoint(BASE_DIR / f'pretraining/trained_quantizers/quantizer_2^14_{csv.stem}_final')
 
 
 if __name__ == '__main__':
     main()
-
