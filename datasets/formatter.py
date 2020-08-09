@@ -5,6 +5,7 @@ import pathlib
 import pandas as pd
 
 from settings import TARGET_CLASS_COLUMN, PCAP_OUTPUT_DIR, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
+from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
 
 """ task-specific module, provided for the sake of reproducibility """
 
@@ -15,26 +16,34 @@ COMMON_PROTOCOLS = ['DNS', 'NTP', 'STUN']
 GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSDP']
 
 
-def _load_parsed_results(dir_with_parsed_csvs = None):
-    if dir_with_parsed_csvs is None:
-        dir_with_parsed_csvs = PCAP_OUTPUT_DIR
-    else:
-        dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
+def _load_parsed_results(dir_with_parsed_csvs=None):
+    dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
 
-    parsed_pcaps = list(dir_with_parsed_csvs.glob('*.csv'))
+    parsed_csvs = list(dir_with_parsed_csvs.glob('train_*.csv'))
+    parsed_csvs += list(dir_with_parsed_csvs.glob('val_*.csv'))
 
     iot_datasets = []
-    usual_traffic = None
+    usual_traffic = []
 
-    for dataset in parsed_pcaps:
-        traffic_df = pd.read_csv(dataset, na_filter='')
-        traffic_df['source_file'] = dataset.name
-        if dataset.name.startswith('non_iot'):
-            usual_traffic = traffic_df
+    iot_categories = set(item.category for item in IOT_DEVICES)
+    for csv_file in parsed_csvs:
+        traffic_df = pd.read_csv(csv_file, na_filter='')
+        if csv_file.name.startswith('train'):
+            base_name = csv_file.name.split('train_')[-1]
+        elif csv_file.name.startswith('val'):
+            base_name = csv_file.name.split('val_')[-1]
         else:
+            base_name = csv_file.name
+
+        traffic_df['source_file'] = base_name
+
+        if base_name.split('_')[0] in iot_categories:
             iot_datasets.append(traffic_df)
+        else:
+            usual_traffic.append(traffic_df)
 
     iot_traffic = pd.concat(iot_datasets, ignore_index=True)
+    usual_traffic = pd.concat(usual_traffic, ignore_index=True)
     logger.info(f'found: {len(iot_traffic)} IoT flows, and {len(usual_traffic)} usual')
     return iot_traffic, usual_traffic
 
@@ -84,6 +93,7 @@ def prune_targets(dataset, lower_bound=LOWER_BOUND_CLASS_OCCURRENCE):
 
 def save_dataset(dataset, save_to=None):
     """ simple data tracking/versioning via hash suffixes """
+
     def _hash_df(df):
         return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
 
@@ -109,7 +119,7 @@ def read_dataset(filename):
     return dataset
 
 
-def prepare_data(pcap_dir=None):
+def prepare_data(pcap_dir):
     """ the order of operations matters """
     iot_traffic, usual_traffic = _load_parsed_results(pcap_dir)
 
@@ -122,9 +132,11 @@ def prepare_data(pcap_dir=None):
     iot_traffic = _rm_garbage(iot_traffic)
     usual_traffic = _rm_garbage(usual_traffic, garbage=GARBAGE_PROTOCOLS + ['Amazon'], column_from=TARGET_CLASS_COLUMN)
     merged_traffic = pd.concat([usual_traffic, iot_traffic], ignore_index=True)
-    return prune_targets(merged_traffic)
+    return merged_traffic
 
 
 if __name__ == '__main__':
-    total_df = prepare_data()
+    train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv')
+    eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv')
+    total_df = prune_targets(pd.concat([train_df, eval_df], ignore_index=True))
     save_dataset(total_df)
