@@ -51,7 +51,8 @@ class ModelArguments:
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={
-            "help": "The model checkpoint for weights initialization. Leave None if you want to train a model from scratch."
+            "help": "The model checkpoint for weights initialization. "
+                    "Leave None if you want to train a model from scratch."
         },
     )
     model_type: Optional[str] = field(

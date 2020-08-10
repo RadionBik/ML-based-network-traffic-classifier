@@ -58,7 +58,7 @@ class FlowIterDataset(IterableDataset):
 
 
 class FlowDataset(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, train_mode=True):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str):
         assert os.path.isdir(folder_path)
         # TODO feature caching, multiple workers?, filter out one-packet flows
 
@@ -66,7 +66,6 @@ class FlowDataset(Dataset):
         logger.info("initializing dataset from %s with %s files", folder_path, len(self.source_files))
 
         self.tokenizer = tokenizer
-        self.train_mode = train_mode
 
         raw_flows = pd.concat((pd.read_csv(csv, usecols=self.tokenizer.packet_quantizer.raw_columns, dtype=np.float32)
                                for csv in self.source_files), ignore_index=True)
@@ -91,7 +90,7 @@ class FlowDataset(Dataset):
 @dataclass
 class FlowCollator:
     """
-    Data collator used for language modeling.
+    Data collator used for traffic flow modeling.
     - collates batches of tensors, honoring their tokenizer's pad_token
     - preprocesses batches for masked language modeling
     """

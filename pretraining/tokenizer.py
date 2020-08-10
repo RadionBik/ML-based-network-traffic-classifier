@@ -91,7 +91,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
             flows = flows.values
 
         if flows.shape[1]//2 != self.max_model_input_sizes:
-            logger.warning(f'input number of features ({flows.shape[1]//2}) does not match '
+            logger.debug(f'input number of features ({flows.shape[1]//2}) does not match '
                            f'max_model_input_sizes ({self.max_model_input_sizes})')
         clusters = self.packet_quantizer.transform(flows)
 
@@ -101,7 +101,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         result = {'input_ids': clusters.astype(np.int64)}
 
         if return_attention_mask:
-            token_mask = (clusters != self.packet_quantizer.non_packet_value).astype(np.int64)
+            token_mask = (clusters != self.pad_token_id).astype(np.int64)
             result.update({'attention_mask': token_mask})
 
         return BatchEncoding(result, tensor_type=TensorType(return_tensors), prepend_batch_axis=False)
