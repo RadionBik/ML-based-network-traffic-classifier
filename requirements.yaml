@@ -2,7 +2,6 @@ name: classifier
 channels:
   - conda-forge
   - defaults
-  - pytorch
 dependencies:
   - python=3.7
   - jupyterlab>=2.1
@@ -24,11 +23,9 @@ dependencies:
   - nodejs
   - neptune-client
   - psutil
-  - pytorch::pytorch=1.5
-  - pytorch::torchvision
-  - cudatoolkit=10.2
+#  - pytorch::pytorch=1.6 # -- built from source due to CUDA 11.0 and apex
   - pip:
-    - pytorch-lightning
+    - pytorch-lightning==0.8.5
     - nfstream==5.2.0
     - sh==1.13.1
     - pandarallel==1.4.8
