@@ -10,7 +10,7 @@ class Reporter:
     def __init__(self, true, predicted, classifier_name: str, target_classes: Optional[list] = None):
         self.true = true
         self.predicted = predicted
-        self.target_classes = target_classes if target_classes else list(range(max(true) + 1))
+        self.target_classes = target_classes if len(target_classes) > 0 else list(range(max(true) + 1))
         self.classifier_name = classifier_name
 
     def scores(self):
