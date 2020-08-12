@@ -2,12 +2,11 @@ import argparse
 import logging
 
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
 
 from classifiers import read_classifier_settings, initialize_classifiers
 from datasets import read_dataset
 from feature_processing import Featurizer
-from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
+from settings import DEFAULT_PACKET_LIMIT_PER_FLOW
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +19,14 @@ def _parse_args():
         default='classifiers_config.yaml')
 
     parser.add_argument(
-        '--dataset',
+        '--train_dataset',
         help='path to preprocessed .csv dataset',
-        default='datasets/dataset_e762407edfa13d70dc5e8fe4a8653833.csv'
+        default='datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv'
+    )
+    parser.add_argument(
+        '--test_dataset',
+        help='path to preprocessed .csv dataset',
+        default='datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv'
     )
 
     parser.add_argument('--continuous', dest='continuous', action='store_true',
@@ -54,17 +58,16 @@ def main():
 
     logger.info('Loading csv file..')
 
-    dataset = read_dataset(args.dataset)
-    df_train, df_test = train_test_split(dataset,
-                                         stratify=dataset[TARGET_CLASS_COLUMN],
-                                         random_state=1)
+    df_train = read_dataset(args.train_dataset, fill_na=True)
+    df_test = read_dataset(args.test_dataset, fill_na=True)
 
     featurizer = Featurizer(
         cont_features=None if args.continuous else [],
         categorical_features=None if args.categorical else [],
-        raw_features=args.raw,
+        raw_feature_num=args.raw,
         consider_j3a=False,
-        consider_tcp_flags=False
+        consider_tcp_flags=False,
+        consider_raw_feature_iat=False
     )
     X_train, y_train = featurizer.fit_transform_encode(df_train)
     X_test, y_test = featurizer.transform_encode(df_test)
@@ -76,7 +79,7 @@ def main():
         #     fit_optimal_classifier(model_holder, X_train, y_train)
         model_holder.classifier.fit(X_train, y_train)
         y_pred = model_holder.classifier.predict(X_test)
-        print(classification_report(y_test, y_pred, target_names=featurizer.target_encoder.classes_, digits=2))
+        print(classification_report(y_test, y_pred, target_names=featurizer.target_encoder.classes_, digits=3))
 
 
 if __name__ == '__main__':

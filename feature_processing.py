@@ -26,7 +26,8 @@ class Featurizer:
                  categorical_features=None,
                  consider_tcp_flags=True,
                  consider_j3a=True,
-                 raw_features=0,
+                 raw_feature_num=0,
+                 consider_raw_feature_iat=False,
                  target_column=TARGET_CLASS_COLUMN):
 
         self.target_encoder = LabelEncoder()
@@ -45,7 +46,10 @@ class Featurizer:
             self.categorical_features.extend([f'{FEATURE_PREFIX.client}found_tcp_flags',
                                               f'{FEATURE_PREFIX.server}found_tcp_flags'])
 
-        self.raw_features = generate_raw_feature_names(raw_features)
+        self.raw_features = generate_raw_feature_names(
+            raw_feature_num,
+            base_features=('packet', 'iat') if consider_raw_feature_iat else ('packet',)
+        )
 
     @staticmethod
     def _get_cont_features():
@@ -91,7 +95,8 @@ class Featurizer:
                                 self.categorical_features)),
 
         if self.raw_features:
-            feature_set.append(('raw_features', FunctionTransformer(lambda x: x), self.raw_features))
+            # TODO replace with PacketScaler
+            feature_set.append(('raw_features', StandardScaler(), self.raw_features))
 
         self.transformer = ColumnTransformer(feature_set)
 
