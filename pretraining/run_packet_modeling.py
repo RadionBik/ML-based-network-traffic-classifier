@@ -34,7 +34,7 @@ from transformers import (
     set_seed, AutoModelForCausalLM,
 )
 
-from pretraining.dataset import FlowCollator, FlowDataset
+from pretraining.dataset import PretrainCollator, PretrainDataset
 from pretraining.tokenizer import PacketTokenizer
 from pretraining.trainer import SeqTrainer
 from settings import BASE_DIR
@@ -98,7 +98,7 @@ class DataTrainingArguments:
 def get_dataset(args: DataTrainingArguments, tokenizer: PacketTokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
     logger.info(f'block_size is {args.block_size} and likely unused')
-    return FlowDataset(tokenizer=tokenizer, folder_path=file_path)
+    return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
 
 
 def main():
@@ -190,7 +190,7 @@ def main():
     trainer = SeqTrainer(
         model=model,
         args=training_args,
-        data_collator=FlowCollator(tokenizer),  # the default collator should be ok
+        data_collator=PretrainCollator(tokenizer),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         prediction_loss_only=True,

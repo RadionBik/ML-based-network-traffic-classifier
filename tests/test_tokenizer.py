@@ -3,7 +3,7 @@ import pathlib
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pretraining.dataset import FlowIterDataset, FlowCollator, FlowDataset
+from pretraining.dataset import PretrainIterDataset, PretrainCollator, PretrainDataset
 from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
 from pretraining.tokenizer import PacketTokenizer
 
@@ -73,15 +73,15 @@ def test_tokenize_detokenize(quantizer_checkpoint, raw_dataset):
 
 def test_flow_loader(raw_dataset_folder, quantizer_checkpoint):
     tokenizer = PacketTokenizer.from_pretrained(quantizer_checkpoint, flow_size=20)
-    ds = FlowIterDataset(tokenizer, folder_path=raw_dataset_folder)
-    loader = DataLoader(ds, batch_size=4, collate_fn=FlowCollator(tokenizer), drop_last=True)
+    ds = PretrainIterDataset(tokenizer, folder_path=raw_dataset_folder)
+    loader = DataLoader(ds, batch_size=4, collate_fn=PretrainCollator(tokenizer), drop_last=True)
     for flow in loader:
         assert flow['input_ids'].shape == (4, 22)
 
 
 def test_flowlight_loader(raw_dataset_folder, quantizer_checkpoint):
     tokenizer = PacketTokenizer.from_pretrained(quantizer_checkpoint, flow_size=20)
-    ds = FlowDataset(tokenizer, folder_path=raw_dataset_folder)
-    loader = DataLoader(ds, batch_size=4, collate_fn=FlowCollator(tokenizer), drop_last=True)
+    ds = PretrainDataset(tokenizer, folder_path=raw_dataset_folder)
+    loader = DataLoader(ds, batch_size=4, collate_fn=PretrainCollator(tokenizer), drop_last=True)
     for flow in loader:
         assert flow['input_ids'].shape == (4, 22)
