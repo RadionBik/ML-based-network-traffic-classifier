@@ -5,7 +5,6 @@ import pathlib
 import pandas as pd
 
 from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
-import feature_processing as feat_proc
 from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
 
 """ task-specific module, provided for the sake of reproducibility """
@@ -17,10 +16,11 @@ COMMON_PROTOCOLS = ['DNS', 'NTP', 'STUN']
 GARBAGE_PROTOCOLS = ['ICMP', 'ICMPV6', 'DHCPV6', 'DHCP', 'Unknown', 'IGMP', 'SSDP']
 
 
-def read_dataset(filename) -> pd.DataFrame:
+def read_dataset(filename, fill_na=False) -> pd.DataFrame:
     """ a simple wrapper for pandas """
-    # cont_columns = feat_proc.CONTINUOUS_NAMES+feat_proc.generate_raw_feature_names()
-    dataset = pd.read_csv(filename, na_filter=True).fillna(0)
+    dataset = pd.read_csv(filename, na_filter=True)
+    if fill_na:
+        dataset = dataset.fillna(0)
     logger.info(f'read {len(dataset)} flows from {filename}')
     return dataset
 
@@ -30,6 +30,7 @@ def _load_parsed_results(dir_with_parsed_csvs=None):
 
     parsed_csvs = list(dir_with_parsed_csvs.glob('train_*.csv'))
     parsed_csvs += list(dir_with_parsed_csvs.glob('val_*.csv'))
+    parsed_csvs += list(dir_with_parsed_csvs.glob('test_*.csv'))
 
     iot_datasets = []
     usual_traffic = []
@@ -37,10 +38,15 @@ def _load_parsed_results(dir_with_parsed_csvs=None):
     iot_categories = set(item.category for item in IOT_DEVICES)
     for csv_file in parsed_csvs:
         traffic_df = read_dataset(csv_file)
-        if csv_file.name.startswith('train'):
+        # skip non-home and IoT files
+        if 'raw_csv' in csv_file.name:
+            continue
+        elif csv_file.name.startswith('train'):
             base_name = csv_file.name.split('train_')[-1]
         elif csv_file.name.startswith('val'):
             base_name = csv_file.name.split('val_')[-1]
+        elif csv_file.name.startswith('test'):
+            base_name = csv_file.name.split('test_')[-1]
         else:
             base_name = csv_file.name
 
@@ -90,19 +96,18 @@ def _rm_garbage(dataset, garbage: list = None, column_from='ndpi_app'):
     return dataset[~garbage_indexer]
 
 
-def prune_targets(dataset, lower_bound=LOWER_BOUND_CLASS_OCCURRENCE):
+def prune_targets(dataset, lower_bound=LOWER_BOUND_CLASS_OCCURRENCE, underrepresented_protos: list = None):
     """ rm infrequent targets """
     proto_counts = dataset[TARGET_CLASS_COLUMN].value_counts()
-    underepresented_protos = proto_counts[proto_counts < lower_bound].index.tolist()
-    if underepresented_protos:
-        logger.info(f'pruning the following targets: {underepresented_protos}')
-        dataset = dataset.loc[~dataset[TARGET_CLASS_COLUMN].isin(underepresented_protos)]
-    return dataset.reset_index(drop=True)
+    if underrepresented_protos is None:
+        underrepresented_protos = proto_counts[proto_counts < lower_bound].index.tolist()
+    if underrepresented_protos:
+        logger.info(f'pruning the following targets: {underrepresented_protos}')
+        dataset = dataset.loc[~dataset[TARGET_CLASS_COLUMN].isin(underrepresented_protos)]
+    return dataset.reset_index(drop=True), underrepresented_protos
 
 
-def save_dataset(dataset, save_to=None):
-    """ simple data tracking/versioning via hash suffixes """
-
+def get_hash(df):
     def _hash_df(df):
         return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
 
@@ -115,10 +120,15 @@ def save_dataset(dataset, save_to=None):
     try:
         df_hash = _get_current_commit_hash()
     except Exception:
-        df_hash = _hash_df(dataset)
+        df_hash = _hash_df(df)
+    return df_hash
+
+
+def save_dataset(dataset, save_to=None):
+    """ simple data tracking/versioning via hash suffixes """
 
     if save_to is None:
-        save_to = BASE_DIR / f'datasets/dataset_{df_hash}.csv'
+        save_to = BASE_DIR / f'datasets/dataset_{get_hash(dataset)}.csv'
     dataset.to_csv(save_to, index=False)
     logger.info(f'saved dataset to {save_to}')
     return save_to
@@ -131,6 +141,7 @@ def delete_duplicating_flows(dataset):
 
     dataset['session_id'] = dataset['flow_id'].apply(to_session_id)
     dataset = dataset.drop_duplicates(subset=['session_id'])
+    dataset.drop(columns='session_id', inplace=True)
     logger.info(f'{dataset.shape[0]} flows left after deduplication')
     return dataset
 
@@ -151,10 +162,21 @@ def prepare_data(pcap_dir):
     return merged_traffic
 
 
-if __name__ == '__main__':
+def main():
     train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv')
     eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv')
-    total_df = pd.concat([train_df, eval_df], ignore_index=True)
-    total_df = delete_duplicating_flows(total_df)
-    total_df = prune_targets(total_df, lower_bound=50)
-    save_dataset(total_df)
+    test_df = prepare_data('/media/raid_store/pretrained_traffic/test_csv')
+    tr_val_df = pd.concat([train_df, eval_df], ignore_index=True)
+    tr_val_df = delete_duplicating_flows(tr_val_df)
+    tr_val_df, underrepresented_protos = prune_targets(tr_val_df)
+
+    test_df = delete_duplicating_flows(test_df)
+    test_df, _ = prune_targets(test_df, underrepresented_protos=underrepresented_protos)
+
+    suffix = get_hash(tr_val_df)
+    save_dataset(tr_val_df, save_to=BASE_DIR / f'datasets/train_{suffix}.csv')
+    save_dataset(test_df, save_to=BASE_DIR / f'datasets/test_{suffix}.csv')
+
+
+if __name__ == '__main__':
+    main()

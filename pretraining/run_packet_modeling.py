@@ -34,7 +34,7 @@ from transformers import (
     set_seed, AutoModelForCausalLM,
 )
 
-from pretraining.dataset import PretrainCollator, PretrainDataset
+from pretraining.dataset import PretrainCollator, PretrainDataset, FinetuningDataset
 from pretraining.tokenizer import PacketTokenizer
 from pretraining.trainer import SeqTrainer
 from settings import BASE_DIR
@@ -93,12 +93,19 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
+    finetune_on_class: Optional[str] = field(
+        default=None,
+        metadata={"help": "specifies flow subset within the DF's target column to fine-tune the packet model on"}
+    )
 
 
 def get_dataset(args: DataTrainingArguments, tokenizer: PacketTokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
     logger.info(f'block_size is {args.block_size} and likely unused')
-    return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
+    if not args.finetune_on_class:
+        return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
+    else:
+        return FinetuningDataset(tokenizer=tokenizer, dataset_path=file_path, target_class=args.finetune_on_class)
 
 
 def main():

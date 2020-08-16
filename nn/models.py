@@ -7,7 +7,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from transformers import GPT2Model
 from transformers.trainer_utils import set_seed
 
-
 from report import Reporter
 from settings import BASE_DIR
 

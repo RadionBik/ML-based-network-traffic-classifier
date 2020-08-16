@@ -165,3 +165,31 @@ def classification_quantized_collator(examples: List[Dict[str, torch.Tensor]]) -
     attention_masks = torch.cat([item['attention_mask'] for item in examples], dim=0)
     targets = torch.cat([item['target'].view(1) for item in examples])
     return {"input_ids": input_ids, "attention_mask": attention_masks, }, targets
+
+
+class FinetuningDataset(Dataset):
+    def __init__(self, tokenizer: PacketTokenizer, dataset_path: str, target_class: str, target_column: str = None):
+        assert os.path.isfile(dataset_path)
+
+        dataset_path = pathlib.Path(dataset_path)
+        self.source_file = dataset_path
+        logger.info("initializing dataset from %s with '%s' target class", dataset_path, target_class)
+
+        self.tokenizer = tokenizer
+
+        self.target_column = TARGET_CLASS_COLUMN if target_column is None else target_column
+
+        raw_flows = pd.read_csv(self.source_file,
+                                usecols=self.tokenizer.packet_quantizer.raw_columns + [self.target_column])
+        raw_flows = raw_flows[raw_flows.loc[:, self.target_column] == target_class]
+
+        self.raw_flows = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns].values
+        logger.info('initialized dataset')
+
+    def __len__(self):
+        return len(self.raw_flows)
+
+    def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
+        return self.tokenizer.batch_encode_plus(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                add_special_tokens=True,
+                                                return_attention_mask=True).data
