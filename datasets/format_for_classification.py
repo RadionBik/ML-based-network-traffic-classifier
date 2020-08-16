@@ -3,6 +3,7 @@ import logging
 import pathlib
 
 import pandas as pd
+from typing import Iterable
 
 from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
 from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
@@ -25,23 +26,24 @@ def read_dataset(filename, fill_na=False) -> pd.DataFrame:
     return dataset
 
 
-def _load_parsed_results(dir_with_parsed_csvs=None):
+def _load_parsed_results(dir_with_parsed_csvs, filename_patterns_to_exclude: Iterable[str]):
     dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
 
-    parsed_csvs = list(dir_with_parsed_csvs.glob('train_*.csv'))
-    parsed_csvs += list(dir_with_parsed_csvs.glob('val_*.csv'))
-    parsed_csvs += list(dir_with_parsed_csvs.glob('test_*.csv'))
+    parsed_csvs = list(dir_with_parsed_csvs.glob('*.csv'))
 
     iot_datasets = []
     usual_traffic = []
 
     iot_categories = set(item.category for item in IOT_DEVICES)
     for csv_file in parsed_csvs:
-        traffic_df = read_dataset(csv_file)
         # skip non-home and IoT files
-        if 'raw_csv' in csv_file.name:
+        if filename_patterns_to_exclude and any(pattern in csv_file.name for pattern in filename_patterns_to_exclude):
+            logger.info(f'skipping {csv_file} due to "filename_patterns_to_exclude"')
             continue
-        elif csv_file.name.startswith('train'):
+
+        traffic_df = read_dataset(csv_file)
+
+        if csv_file.name.startswith('train'):
             base_name = csv_file.name.split('train_')[-1]
         elif csv_file.name.startswith('val'):
             base_name = csv_file.name.split('val_')[-1]
@@ -57,7 +59,11 @@ def _load_parsed_results(dir_with_parsed_csvs=None):
         else:
             usual_traffic.append(traffic_df)
 
-    iot_traffic = pd.concat(iot_datasets, ignore_index=True)
+    try:
+        iot_traffic = pd.concat(iot_datasets, ignore_index=True)
+    except ValueError:
+        iot_traffic = pd.DataFrame([])
+        logger.warning('no IoT files were found!')
     usual_traffic = pd.concat(usual_traffic, ignore_index=True)
     logger.info(f'found: {len(iot_traffic)} IoT flows, and {len(usual_traffic)} usual')
     return iot_traffic, usual_traffic
@@ -146,26 +152,37 @@ def delete_duplicating_flows(dataset):
     return dataset
 
 
-def prepare_data(pcap_dir):
+def prepare_data(csv_dir, remove_garbage=True, filename_patterns_to_exclude=None):
     """ the order of operations matters """
-    iot_traffic, usual_traffic = _load_parsed_results(pcap_dir)
+    iot_traffic, usual_traffic = _load_parsed_results(csv_dir, filename_patterns_to_exclude)
 
-    iot_traffic = _set_common_protos_targets(iot_traffic)
+    if len(iot_traffic) > 0:
+        iot_traffic = _set_common_protos_targets(iot_traffic)
+        iot_traffic = _set_iot_devices_targets(iot_traffic)
+        if remove_garbage:
+            iot_traffic = _rm_garbage(iot_traffic,
+                                      column_from='ndpi_app')
+
     usual_traffic = _set_common_protos_targets(usual_traffic)
-
-    iot_traffic = _set_iot_devices_targets(iot_traffic)
     usual_traffic = _set_application_targets(usual_traffic)
 
-    iot_traffic = _rm_garbage(iot_traffic)
-    usual_traffic = _rm_garbage(usual_traffic, garbage=GARBAGE_PROTOCOLS + ['Amazon'], column_from=TARGET_CLASS_COLUMN)
+    if remove_garbage:
+        usual_traffic = _rm_garbage(usual_traffic,
+                                    garbage=GARBAGE_PROTOCOLS + ['Amazon'],
+                                    column_from=TARGET_CLASS_COLUMN)
+
     merged_traffic = pd.concat([usual_traffic, iot_traffic], ignore_index=True)
     return merged_traffic
 
 
 def main():
-    train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv')
-    eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv')
-    test_df = prepare_data('/media/raid_store/pretrained_traffic/test_csv')
+    excluded_patterns = ('raw_csv', '202004')
+    train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv',
+                            filename_patterns_to_exclude=excluded_patterns)
+    eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv',
+                           filename_patterns_to_exclude=excluded_patterns)
+    test_df = prepare_data('/media/raid_store/pretrained_traffic/test_csv',
+                           filename_patterns_to_exclude=excluded_patterns)
     tr_val_df = pd.concat([train_df, eval_df], ignore_index=True)
     tr_val_df = delete_duplicating_flows(tr_val_df)
     tr_val_df, underrepresented_protos = prune_targets(tr_val_df)
