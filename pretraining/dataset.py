@@ -14,6 +14,7 @@ import sh
 
 from settings import logger, TARGET_CLASS_COLUMN
 from .tokenizer import PacketTokenizer
+from datasets import format_for_classification
 
 
 class PretrainIterDataset(IterableDataset):
@@ -41,9 +42,9 @@ class PretrainIterDataset(IterableDataset):
                 if self.train_mode and pd.isna(raw_flow.iloc[:, 3]).any():
                     continue
 
-                encoded = self.tokenizer.batch_encode_plus(raw_flow,
-                                                           add_special_tokens=True,
-                                                           return_attention_mask=True)
+                encoded = self.tokenizer.batch_encode_packets(raw_flow,
+                                                              add_special_tokens=True,
+                                                              return_attention_mask=True)
                 yield encoded
 
     @lru_cache(maxsize=2)
@@ -83,9 +84,49 @@ class PretrainDataset(Dataset):
         return len(self.raw_flows)
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        return self.tokenizer.batch_encode_plus(self.raw_flows[i].reshape(1, -1).astype(np.float64),
-                                                add_special_tokens=True,
-                                                return_attention_mask=True).data
+        return self.tokenizer.batch_encode_packets(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                   add_special_tokens=True,
+                                                   return_attention_mask=True).data
+
+
+class PretrainDatasetWithClasses(Dataset):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str):
+        assert os.path.isdir(folder_path)
+
+        dataset_path = pathlib.Path(folder_path)
+        logger.info("initializing dataset from %s", folder_path)
+
+        self.tokenizer = tokenizer
+
+        raw_flows = format_for_classification.prepare_data(dataset_path,
+                                                           remove_garbage=False,
+                                                           filename_patterns_to_exclude=('202004',))
+        raw_flows = raw_flows.sample(frac=1, random_state=1)
+
+        # skip 1-packet and empty flows
+        raw_flows.dropna(axis=0, subset=['raw_packet0', 'raw_packet1'], inplace=True, how='any')
+
+        targets = raw_flows.pop(TARGET_CLASS_COLUMN)
+        raw_flows = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns]
+
+        self.raw_flows: np.ndarray = raw_flows.values
+        self.targets: np.ndarray = targets.values
+        logger.info('initialized dataset')
+        tokenizer.add_class_tokens(self.target_classes)
+        logger.info('added special tokens representing classes')
+
+    @property
+    def target_classes(self) -> list:
+        return np.unique(self.targets).tolist()
+
+    def __len__(self):
+        return len(self.raw_flows)
+
+    def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
+        return self.tokenizer.batch_encode_packets(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                   target_class=self.targets[i],
+                                                   add_special_tokens=True,
+                                                   return_attention_mask=True).data
 
 
 @dataclass
@@ -145,9 +186,9 @@ class ClassificationQuantizedDataset(Dataset):
         return len(self.raw_flows)
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        enc_flow = self.tokenizer.batch_encode_plus(self.raw_flows[i].reshape(1, -1).astype(np.float64),
-                                                    add_special_tokens=True,
-                                                    return_attention_mask=True).data
+        enc_flow = self.tokenizer.batch_encode_packets(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                       add_special_tokens=True,
+                                                       return_attention_mask=True).data
 
         enc_flow.update({'target': torch.as_tensor(self.targets[i], dtype=torch.long)})
         return enc_flow
@@ -190,6 +231,6 @@ class FinetuningDataset(Dataset):
         return len(self.raw_flows)
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        return self.tokenizer.batch_encode_plus(self.raw_flows[i].reshape(1, -1).astype(np.float64),
-                                                add_special_tokens=True,
-                                                return_attention_mask=True).data
+        return self.tokenizer.batch_encode_packets(self.raw_flows[i].reshape(1, -1).astype(np.float64),
+                                                   add_special_tokens=True,
+                                                   return_attention_mask=True).data

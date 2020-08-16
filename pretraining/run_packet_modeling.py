@@ -31,10 +31,10 @@ from transformers import (
     GPT2LMHeadModel,
     HfArgumentParser,
     TrainingArguments,
-    set_seed, AutoModelForCausalLM,
+    set_seed, AutoModelForCausalLM, Trainer,
 )
 
-from pretraining.dataset import PretrainCollator, PretrainDataset, FinetuningDataset
+from pretraining.dataset import PretrainCollator, PretrainDataset, FinetuningDataset, PretrainDatasetWithClasses
 from pretraining.tokenizer import PacketTokenizer
 from pretraining.trainer import SeqTrainer
 from settings import BASE_DIR
@@ -93,19 +93,26 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    finetune_on_class: Optional[str] = field(
+    finetune_on_class: str = field(
         default=None,
         metadata={"help": "specifies flow subset within the DF's target column to fine-tune the packet model on"}
+    )
+    train_with_targets: bool = field(
+        default=False,
+        metadata={"help": "specifies whether to include flow label as the first special token or to use a generic BOS"}
     )
 
 
 def get_dataset(args: DataTrainingArguments, tokenizer: PacketTokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
     logger.info(f'block_size is {args.block_size} and likely unused')
-    if not args.finetune_on_class:
-        return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
-    else:
+    if args.finetune_on_class:
         return FinetuningDataset(tokenizer=tokenizer, dataset_path=file_path, target_class=args.finetune_on_class)
+
+    if args.train_with_targets:
+        return PretrainDatasetWithClasses(tokenizer=tokenizer, folder_path=file_path)
+
+    return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
 
 
 def main():
@@ -131,6 +138,9 @@ def main():
         raise ValueError(
             f"Output directory ({training_args.output_dir}) already exists and is not empty. Use --overwrite_output_dir to overcome."
         )
+
+    if data_args.finetune_on_class and data_args.train_with_targets:
+        raise ValueError("Pretraining with flow labels and fine-tuning on the class simultaneously not supported.")
 
     # Setup logging
     logging.basicConfig(
@@ -180,8 +190,6 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    model.resize_token_embeddings(len(tokenizer))
-    print(model)
     if data_args.block_size <= 0:
         data_args.block_size = tokenizer.max_len
         # Our input block size will be the max possible for the model
@@ -189,12 +197,13 @@ def main():
         data_args.block_size = min(data_args.block_size, tokenizer.max_len)
 
     # Get datasets
-
     train_dataset = get_dataset(data_args, tokenizer=tokenizer) if training_args.do_train else None
     eval_dataset = get_dataset(data_args, tokenizer=tokenizer, evaluate=True) if training_args.do_eval else None
+    model.resize_token_embeddings(len(tokenizer))
+    print(model)
 
     # Initialize our Trainer
-    trainer = SeqTrainer(
+    trainer = Trainer(
         model=model,
         args=training_args,
         data_collator=PretrainCollator(tokenizer),

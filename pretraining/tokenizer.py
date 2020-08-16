@@ -2,7 +2,7 @@ import bisect
 import collections
 import json
 import pathlib
-from functools import lru_cache
+from functools import lru_cache, partial
 from typing import Optional, Union
 
 import numpy as np
@@ -36,13 +36,22 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         )
         self.packet_quantizer = packet_quantizer
         self.cluster_num = packet_quantizer.n_clusters
-        # special token ids are inserted after all packet clusters (that start at 0)
+        # special token ids are inserted after all packet clusters (which start at 0)
         self.ids_to_tokens = collections.OrderedDict([(ids + self.cluster_num, tok)
                                                       for ids, tok in enumerate(self.all_special_tokens)])
 
         self.tokens_to_ids = {v: k for k, v in self.ids_to_tokens.items()}
 
         logger.info('initialized PacketTokenizer')
+
+    def add_class_tokens(self, class_names: list):
+        classes_to_add = set(class_names) - set(self.tokens_to_ids.keys())
+
+        ids_to_classes = collections.OrderedDict([(ids + len(self), tok) for ids, tok in enumerate(classes_to_add)])
+        classes_to_ids = {v: k for k, v in ids_to_classes.items()}
+
+        self.ids_to_tokens.update(ids_to_classes)
+        self.tokens_to_ids.update(classes_to_ids)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, flow_size=None):
@@ -55,7 +64,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         self.packet_quantizer.save_checkpoint(save_directory)
 
     def convert_ids_to_tokens(self, index):
-        if isinstance(index, str):
+        if isinstance(index, int):
             # exception indicates the bug
             return self.ids_to_tokens[index]
         else:
@@ -67,10 +76,10 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         else:
             raise NotImplementedError
 
-    def _expand_with_special_tokens(self, flow: np.ndarray) -> np.ndarray:
+    def _expand_with_special_tokens(self, flow: np.ndarray, first_token) -> np.ndarray:
         # truncate to account for the tokens
         flow = flow[:self.max_model_input_sizes - 2]
-        flow = np.insert(flow, 0, self.bos_token_id)
+        flow = np.insert(flow, 0, first_token)
         non_packets_mask = flow == self.packet_quantizer.non_packet_value
         flow[non_packets_mask] = self.pad_token_id
         # we either pick index of the first True value or append
@@ -78,13 +87,13 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         flow = np.insert(flow, end_of_flow, self.eos_token_id)
         return flow
 
-    def batch_encode_plus(
+    def batch_encode_packets(
             self,
             flows: Union[pd.DataFrame, np.ndarray],
+            target_class: Optional[str] = None,
             add_special_tokens: bool = True,
             return_tensors: Optional[Union[str, TensorType]] = TensorType.PYTORCH,
             return_attention_mask: Optional[bool] = True,
-            **kwargs
     ) -> BatchEncoding:
 
         if isinstance(flows, pd.DataFrame):
@@ -96,7 +105,9 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         clusters = self.packet_quantizer.transform(flows)
 
         if add_special_tokens:
-            clusters = np.apply_along_axis(self._expand_with_special_tokens, axis=1, arr=clusters)
+            first_token = self.convert_tokens_to_ids(target_class) if target_class is not None else self.bos_token_id
+            expander = partial(self._expand_with_special_tokens, first_token=first_token)
+            clusters = np.apply_along_axis(expander, axis=1, arr=clusters)
 
         result = {'input_ids': clusters.astype(np.int64)}
 
@@ -107,7 +118,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         return BatchEncoding(result, tensor_type=TensorType(return_tensors), prepend_batch_axis=False)
 
     def _remove_special_tokens(self, flow):
-        # rm bos token
+        # rm first token
         flow = flow[1:]
         # replace pad token with quantizer's non packet value for consistency
         unk_values = flow == self.pad_token_id

@@ -12,7 +12,7 @@ from feature_processing import generate_raw_feature_names
 try:
     from libKMCUDA import kmeans_cuda
 except ImportError:
-    print('calling fit() for PacketQuantizer is not possible, kmcuda must be installed')
+    print('libKMCUDA was not found: calling fit() for PacketQuantizer is not possible, kmcuda must be installed')
 
 from settings import logger, BASE_DIR
 
