@@ -34,6 +34,7 @@ def test_saving_tokenizer(quantizer_checkpoint):
     q = PacketTokenizer.from_pretrained(quantizer_checkpoint)
     q.save_pretrained('/tmp/')
     assert pathlib.Path('/tmp/clusters.json').is_file()
+    assert pathlib.Path('/tmp/ids_to_tokens.json').is_file()
 
 
 def _estimate_normalized_packet_difference(raw_packets, reverted_packets):

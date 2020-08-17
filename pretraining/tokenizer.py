@@ -37,11 +37,14 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         self.packet_quantizer = packet_quantizer
         self.cluster_num = packet_quantizer.n_clusters
         # special token ids are inserted after all packet clusters (which start at 0)
-        self.ids_to_tokens = collections.OrderedDict([(ids + self.cluster_num, tok)
-                                                      for ids, tok in enumerate(self.all_special_tokens)])
+        ids_to_tokens = kwargs.get('ids_to_tokens')
+        if ids_to_tokens:
+            self.ids_to_tokens = ids_to_tokens
+        else:
+            self.ids_to_tokens = collections.OrderedDict([(ids + self.cluster_num, tok)
+                                                          for ids, tok in enumerate(self.all_special_tokens)])
 
         self.tokens_to_ids = {v: k for k, v in self.ids_to_tokens.items()}
-
         logger.info('initialized PacketTokenizer')
 
     def add_class_tokens(self, class_names: list):
@@ -57,10 +60,22 @@ class PacketTokenizer(PreTrainedTokenizerBase):
     def from_pretrained(cls, pretrained_model_name_or_path, flow_size=None):
         path_dir = pathlib.Path(pretrained_model_name_or_path)
         flow_size = cls.max_model_input_sizes if flow_size is None else flow_size
+
+        with open(path_dir / 'ids_to_tokens.json', 'r') as jf:
+            ids_to_tokens = json.load(jf)
+        ids_to_tokens = {int(k): v for k, v in ids_to_tokens.items()}
+
         quantizer = PacketQuantizer.from_checkpoint(path_dir, flow_size=flow_size)
-        return cls(packet_quantizer=quantizer)
+        return cls(
+            packet_quantizer=quantizer,
+            ids_to_tokens=ids_to_tokens,
+        )
 
     def save_pretrained(self, save_directory):
+        save_directory = pathlib.Path(save_directory)
+        with open(save_directory / 'ids_to_tokens.json', 'w') as jf:
+            json.dump(self.ids_to_tokens, jf)
+
         self.packet_quantizer.save_checkpoint(save_directory)
 
     def convert_ids_to_tokens(self, index):
