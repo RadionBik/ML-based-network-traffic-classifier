@@ -61,9 +61,14 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         path_dir = pathlib.Path(pretrained_model_name_or_path)
         flow_size = cls.max_model_input_sizes if flow_size is None else flow_size
 
-        with open(path_dir / 'ids_to_tokens.json', 'r') as jf:
-            ids_to_tokens = json.load(jf)
-        ids_to_tokens = {int(k): v for k, v in ids_to_tokens.items()}
+        token_map_file = path_dir / 'ids_to_tokens.json'
+        if token_map_file.is_file():
+            with open(token_map_file, 'r') as jf:
+                ids_to_tokens = json.load(jf)
+            ids_to_tokens = {int(k): v for k, v in ids_to_tokens.items()}
+        else:
+            ids_to_tokens = {}
+            logger.warning('special tokens map "ids_to_tokens.json" was not found, will attempt to recreate one')
 
         quantizer = PacketQuantizer.from_checkpoint(path_dir, flow_size=flow_size)
         return cls(
