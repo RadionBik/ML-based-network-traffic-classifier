@@ -8,7 +8,6 @@ from transformers import GPT2Model
 from transformers.trainer_utils import set_seed
 
 from report import Reporter
-from settings import BASE_DIR
 
 set_seed(1)
 
@@ -58,10 +57,10 @@ class BaseClassifier(LightningModule):
         rpt = Reporter(targets, predictions, self.__class__.__name__, target_classes=self.class_labels)
         self.logger.experiment.log_image('confusion_matrix', rpt.plot_conf_matrix())
 
-        clf_report = rpt.clf_report()
+        report_file = f'report_{self.__class__.__name__}.csv'
+        clf_report = rpt.clf_report(save_to=report_file)
         print(clf_report)
-        clf_report.to_csv(BASE_DIR / 'clf_report.csv', index=True)
-        self.logger.experiment.log_artifact((BASE_DIR / 'clf_report.csv').as_posix())
+        self.logger.experiment.log_artifact((rpt.save_dir / report_file).as_posix())
 
         logs = rpt.scores()
         logs.update({'test_loss': avg_loss})

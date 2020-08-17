@@ -26,7 +26,7 @@ IP_PROTO_MAPPING = _read_protocol_mapping()
 RANDOM_SEED = 1
 
 DEFAULT_PACKET_LIMIT_PER_FLOW = int(os.getenv('DEFAULT_PACKET_LIMIT_PER_FLOW', 20))
-LOWER_BOUND_CLASS_OCCURRENCE = int(os.getenv('LOWER_BOUND_CLASS_OCCURRENCE', 10))
+LOWER_BOUND_CLASS_OCCURRENCE = int(os.getenv('LOWER_BOUND_CLASS_OCCURRENCE', 50))
 
 # customize, if needed
 TARGET_CLASS_COLUMN = 'target_class'
@@ -37,3 +37,5 @@ IDLE_TIMEOUT = 60
 # active timeouts are set similarly, (Cisco's JOY tool has 30 sec)
 ACTIVE_TIMEOUT_ONLINE = 60
 ACTIVE_TIMEOUT_OFFLINE = 10e5
+
+NEPTUNE_PROJECT = 'radion/traffic-classifier'

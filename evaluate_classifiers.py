@@ -1,12 +1,13 @@
 import argparse
 import logging
 
-from sklearn.metrics import classification_report
+import neptune
 
 from classifiers import read_classifier_settings, initialize_classifiers
 from datasets import read_dataset
 from feature_processing import Featurizer
-from settings import DEFAULT_PACKET_LIMIT_PER_FLOW
+from report import Reporter
+from settings import DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, BASE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,8 @@ def _parse_args():
         help="when provided, the first N number of raw features are used for classification",
         default=DEFAULT_PACKET_LIMIT_PER_FLOW
     )
+
+    parser.add_argument('--log-neptune', dest='log_neptune', action='store_true', default=True)
     args = parser.parse_args()
     return args
 
@@ -79,7 +82,25 @@ def main():
         #     fit_optimal_classifier(model_holder, X_train, y_train)
         model_holder.classifier.fit(X_train, y_train)
         y_pred = model_holder.classifier.predict(X_test)
-        print(classification_report(y_test, y_pred, target_names=featurizer.target_encoder.classes_, digits=3))
+        reporter = Reporter(y_test, y_pred, model_holder.name, featurizer.target_encoder.classes_)
+
+        report_file = f'report_{model_holder.name}.csv'
+        report = reporter.clf_report(save_to=report_file)
+        print(report)
+
+        if args.log_neptune:
+            neptune.init(NEPTUNE_PROJECT)
+            parameters = vars(args)
+            parameters.update({'classifier': model_name})
+            parameters.update(classifier_settings[model_name]['params'])
+
+            neptune.create_experiment(name='sklearn', params=parameters)
+            neptune.log_artifact((reporter.save_dir / report_file).as_posix())
+            neptune.log_image('confusion_matrix', reporter.plot_conf_matrix())
+            for metric_name, metric_value in reporter.scores().items():
+                neptune.log_metric(metric_name, metric_value)
+
+            neptune.stop()
 
 
 if __name__ == '__main__':

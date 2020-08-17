@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 
+from settings import BASE_DIR
+
 
 class Reporter:
     def __init__(self, true, predicted, classifier_name: str, target_classes: Optional[list] = None):
@@ -12,6 +14,8 @@ class Reporter:
         self.predicted = predicted
         self.target_classes = target_classes if len(target_classes) > 0 else list(range(max(true) + 1))
         self.classifier_name = classifier_name
+        self.save_dir = BASE_DIR / 'reports'
+        self.save_dir.mkdir(exist_ok=True)
 
     def scores(self):
         return {
@@ -20,14 +24,21 @@ class Reporter:
             'F1 weighted': f1_score(self.true, self.predicted, average='weighted')
         }
 
-    def clf_report(self, as_dict=False):
+    def clf_report(self, as_dict=False, save_to=None):
+        def to_df(report):
+            return pd.DataFrame(report).T
+
         report = classification_report(self.true, self.predicted,
                                        target_names=self.target_classes,
                                        digits=3,
                                        output_dict=True)
+
+        if save_to is not None:
+            to_df(report).to_csv(self.save_dir / save_to, index=True)
+
         if as_dict:
             return report
-        return pd.DataFrame(report).T
+        return to_df(report)
 
     def conf_matrix(self, normalize=None):
         return pd.DataFrame(confusion_matrix(self.true, self.predicted, normalize=normalize),
