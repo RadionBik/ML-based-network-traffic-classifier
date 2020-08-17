@@ -45,11 +45,12 @@ class Reporter:
                             columns=self.target_classes,
                             index=self.target_classes)
 
-    def plot_conf_matrix(self, normalize=None, figsize=(20, 20)) -> plt.figure:
+    def plot_conf_matrix(self, normalize=None) -> plt.figure:
 
         cm = self.conf_matrix(normalize).values
         classes = self.target_classes
-        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=figsize)
+        fig_size = int(len(classes) * 0.7)
+        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(fig_size, fig_size))
 
         im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
         ax.set_title('CM of {} classifier'.format(self.classifier_name))
