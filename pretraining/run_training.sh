@@ -13,7 +13,7 @@ PYTHONPATH=.. python run_packet_modeling.py \
 --fp16 \
 --fp16_opt_level=O2 \
 --logging_steps=1 \
---save_steps=100 \
+--save_steps=350 \
 --eval_steps=1000 \
 --gradient_accumulation_steps=30 \
 --num_train_epochs=2 \
