@@ -194,7 +194,7 @@ class ClassificationQuantizedDataset(Dataset):
         return enc_flow
 
 
-def classification_quantized_collator(examples: List[Dict[str, torch.Tensor]]) -> \
+def classification_quantized_collator(examples: List[Dict[str, torch.Tensor]], mask_first_token=True) -> \
         Tuple[Dict[str, torch.Tensor], torch.Tensor]:
     """ Data collator used for traffic classification """
 
@@ -204,8 +204,10 @@ def classification_quantized_collator(examples: List[Dict[str, torch.Tensor]]) -
 
     input_ids = torch.cat([item['input_ids'] for item in examples], dim=0)
     attention_masks = torch.cat([item['attention_mask'] for item in examples], dim=0)
+    if mask_first_token:
+        attention_masks[:, 0] = 0
     targets = torch.cat([item['target'].view(1) for item in examples])
-    return {"input_ids": input_ids, "attention_mask": attention_masks, }, targets
+    return {"input_ids": input_ids, "attention_mask": attention_masks}, targets
 
 
 class FinetuningDataset(Dataset):
