@@ -1,18 +1,17 @@
-import bisect
 import collections
 import json
 import pathlib
-from functools import lru_cache, partial
+from functools import partial
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import torch
-from transformers import PreTrainedTokenizerBase, PreTrainedTokenizer
-from transformers.tokenization_utils_base import TruncationStrategy, PaddingStrategy, TensorType, BatchEncoding
+from transformers import PreTrainedTokenizerBase
+from transformers.tokenization_utils_base import TensorType, BatchEncoding
 
-from settings import logger
 from pretraining.quantizer import PacketQuantizer
+from settings import logger
 
 
 class PacketTokenizer(PreTrainedTokenizerBase):
@@ -36,7 +35,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         )
         self.packet_quantizer = packet_quantizer
         self.cluster_num = packet_quantizer.n_clusters
-        # special token ids are inserted after all packet clusters (which start at 0)
+        # special token ids have indexes larger than all packet clusters (which start at 0)
         ids_to_tokens = kwargs.get('ids_to_tokens')
         if ids_to_tokens:
             self.ids_to_tokens = ids_to_tokens
@@ -66,6 +65,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
             with open(token_map_file, 'r') as jf:
                 ids_to_tokens = json.load(jf)
             ids_to_tokens = {int(k): v for k, v in ids_to_tokens.items()}
+            logger.info('loaded special tokens map from "ids_to_tokens.json"')
         else:
             ids_to_tokens = {}
             logger.warning('special tokens map "ids_to_tokens.json" was not found, will attempt to recreate one')
