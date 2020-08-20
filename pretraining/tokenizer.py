@@ -140,10 +140,18 @@ class PacketTokenizer(PreTrainedTokenizerBase):
     def _remove_special_tokens(self, flow):
         # rm first token
         flow = flow[1:]
-        # replace pad token with quantizer's non packet value for consistency
-        unk_values = flow == self.pad_token_id
-        flow[unk_values] = self.packet_quantizer.non_packet_value
-        flow = np.delete(flow, np.where(flow == self.eos_token_id))
+        try:
+            flow_end_idx = np.where(flow == self.eos_token_id)[0][0]
+        except IndexError:
+            flow_end_idx = flow.shape[0] - 1
+            logger.warning('could not find EOS token, removing the last one')
+
+        if flow_end_idx == flow.shape[0] - 1:
+            flow = flow[:-1]
+        else:
+            flow = flow[:-1]
+            # replace pad token with quantizer's non packet value for consistency
+            flow[flow_end_idx:] = self.packet_quantizer.non_packet_value
         return flow
 
     def batch_decode(self, tokenized_flows, **kwargs) -> np.ndarray:

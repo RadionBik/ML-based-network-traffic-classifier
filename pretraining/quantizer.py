@@ -180,7 +180,7 @@ class PacketQuantizer:
         outbound_cluster_mask = flat_clusters >= self.n_clusters
         n_outbound_clusters = outbound_cluster_mask.sum()
         if n_outbound_clusters > 0:
-            logger.error(f'found {n_outbound_clusters} outbounding cluster values')
+            logger.warning(f'found {n_outbound_clusters} outbounding cluster values')
             flat_clusters[outbound_cluster_mask] = 0
         reverted_packets = self.scaler.inverse_transform(self.kmeans.cluster_centers_[flat_clusters])
         # make NaN non-packets
