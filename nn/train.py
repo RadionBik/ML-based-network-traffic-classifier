@@ -1,7 +1,6 @@
-from functools import partial
+import argparse
 import os
 
-import argparse
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -12,18 +11,12 @@ from torch.utils.data import random_split
 
 from nn.models import GPT2Classifier
 from pretraining.dataset import ClassificationQuantizedDataset
-from pretraining.dataset import classification_quantized_collator
 from pretraining.tokenizer import PacketTokenizer
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c", "--config",
-        help="configuration file, defaults to classifiers_config.yaml",
-        default='classifiers_config.yaml')
-
     parser.add_argument(
         '--train_dataset',
         help='path to preprocessed .csv dataset',
@@ -95,7 +88,7 @@ def main():
                                                   dataset_path=args.test_dataset,
                                                   label_encoder=train_val_dataset.target_encoder)
 
-    collator = partial(classification_quantized_collator, mask_first_token=args.mask_first_token)
+    collator = ClassificationQuantizedDataset.get_collator(mask_first_token=args.mask_first_token)
 
     cpu_counter = os.cpu_count()
     train_dataloader = DataLoader(train_dataset,
@@ -146,8 +139,9 @@ def main():
         upload_source_files=[(BASE_DIR / 'nn/models.py').as_posix()]
     )
 
+    checkpoint_dir = f'{nn_classifier.__class__.__name__}_checkpoints'
     model_checkpoint = ModelCheckpoint(
-        filepath='gpt2_checkpoints/{epoch}-{val_loss:.2f}-{other_metric:.2f}'
+        filepath=checkpoint_dir + '/{epoch}-{val_loss:.2f}-{other_metric:.2f}'
     )
 
     trainer = Trainer(
