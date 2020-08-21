@@ -6,7 +6,7 @@ import pandas as pd
 from typing import Iterable
 
 from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
-from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR
+from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR, FilePatterns
 
 """ task-specific module, provided for the sake of reproducibility """
 
@@ -176,7 +176,7 @@ def prepare_data(csv_dir, remove_garbage=True, filename_patterns_to_exclude=None
 
 
 def main():
-    excluded_patterns = ('raw_csv', '202004')
+    excluded_patterns = FilePatterns.external
     train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv',
                             filename_patterns_to_exclude=excluded_patterns)
     eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv',

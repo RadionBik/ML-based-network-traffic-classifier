@@ -1,20 +1,20 @@
 import os
 import pathlib
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from typing import Dict, List, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+import sh
 import torch
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data.dataset import IterableDataset, Dataset
 from transformers import BatchEncoding
-import sh
 
-from settings import logger, TARGET_CLASS_COLUMN
-from .tokenizer import PacketTokenizer
 from datasets import format_for_classification
+from settings import logger, TARGET_CLASS_COLUMN, FilePatterns
+from .tokenizer import PacketTokenizer
 
 
 class PretrainIterDataset(IterableDataset):
@@ -68,7 +68,7 @@ class PretrainDataset(Dataset):
         logger.info("initializing dataset from %s with %s files", folder_path, len(self.source_files))
 
         self.tokenizer = tokenizer
-
+        # load as 32-bit to save RAM
         raw_flows = pd.concat((pd.read_csv(csv, usecols=self.tokenizer.packet_quantizer.raw_columns, dtype=np.float32)
                                for csv in self.source_files), ignore_index=True)
 
@@ -89,25 +89,28 @@ class PretrainDataset(Dataset):
                                                    return_attention_mask=True).data
 
 
+def load_modeling_data_with_classes(folder_path, tokenizer, shuffle=True) -> Tuple[pd.DataFrame, pd.Series]:
+    assert os.path.isdir(folder_path)
+    logger.info("initializing dataset from %s", folder_path)
+    folder_path = pathlib.Path(folder_path)
+
+    raw_flows = format_for_classification.prepare_data(folder_path,
+                                                       remove_garbage=False,
+                                                       filename_patterns_to_exclude=FilePatterns.mawi)
+    # skip 1-packet and empty flows
+    raw_flows.dropna(axis=0, subset=['raw_packet0', 'raw_packet1'], inplace=True, how='any')
+    if shuffle:
+        raw_flows = raw_flows.sample(frac=1, random_state=1)
+
+    return raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns], raw_flows[TARGET_CLASS_COLUMN]
+
+
 class PretrainDatasetWithClasses(Dataset):
     def __init__(self, tokenizer: PacketTokenizer, folder_path: str):
-        assert os.path.isdir(folder_path)
-
-        dataset_path = pathlib.Path(folder_path)
-        logger.info("initializing dataset from %s", folder_path)
 
         self.tokenizer = tokenizer
 
-        raw_flows = format_for_classification.prepare_data(dataset_path,
-                                                           remove_garbage=False,
-                                                           filename_patterns_to_exclude=('202004',))
-        raw_flows = raw_flows.sample(frac=1, random_state=1)
-
-        # skip 1-packet and empty flows
-        raw_flows.dropna(axis=0, subset=['raw_packet0', 'raw_packet1'], inplace=True, how='any')
-
-        targets = raw_flows.pop(TARGET_CLASS_COLUMN)
-        raw_flows = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns]
+        raw_flows, targets = load_modeling_data_with_classes(folder_path, tokenizer)
 
         self.raw_flows: np.ndarray = raw_flows.values
         self.targets: np.ndarray = targets.values
@@ -192,6 +195,10 @@ class ClassificationQuantizedDataset(Dataset):
 
         enc_flow.update({'target': torch.as_tensor(self.targets[i], dtype=torch.long)})
         return enc_flow
+
+    @classmethod
+    def get_collator(cls, mask_first_token):
+        return partial(classification_quantized_collator, mask_first_token=mask_first_token)
 
 
 def classification_quantized_collator(examples: List[Dict[str, torch.Tensor]], mask_first_token=True) -> \

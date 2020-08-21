@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import os
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -39,3 +40,9 @@ ACTIVE_TIMEOUT_ONLINE = 60
 ACTIVE_TIMEOUT_OFFLINE = 10e5
 
 NEPTUNE_PROJECT = 'radion/traffic-classifier'
+
+
+@dataclass
+class FilePatterns:
+    mawi = ('202004',)
+    external = ('raw_csv', '202004')
