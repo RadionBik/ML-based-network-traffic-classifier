@@ -51,19 +51,13 @@ def generate_packets(protocol, n_samples, model: GPT2LMHeadModel, tokenizer, dev
     return generated_flows
 
 
-def plot_packet_per_flow_hist(flows):
-    non_packet_mask = ~np.isnan(flows)
-    packets_per_flow = non_packet_mask.sum(1) / 2
-    pd.Series(packets_per_flow).hist(bins=50)
-
-
 def main():
     pretrained_path = pathlib.Path('/media/raid_store/pretrained_traffic/gpt2_model_2epochs_classes')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     tokenizer = PacketTokenizer.from_pretrained(pretrained_path)
     model = GPT2LMHeadModel.from_pretrained(pretrained_path).to(device)
-    source_flows, classes = load_modeling_data_with_classes('/media/raid_store/pretrained_traffic/train_csv', tokenizer)
+    _, classes = load_modeling_data_with_classes('/media/raid_store/pretrained_traffic/train_csv')
     source_class_counts = classes.value_counts()
 
     generated_flows_path = pretrained_path.parent / ('generated_flows_' + pretrained_path.stem)

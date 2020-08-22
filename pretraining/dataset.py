@@ -89,7 +89,7 @@ class PretrainDataset(Dataset):
                                                    return_attention_mask=True).data
 
 
-def load_modeling_data_with_classes(folder_path, tokenizer, shuffle=True) -> Tuple[pd.DataFrame, pd.Series]:
+def load_modeling_data_with_classes(folder_path, shuffle=True) -> Tuple[pd.DataFrame, pd.Series]:
     assert os.path.isdir(folder_path)
     logger.info("initializing dataset from %s", folder_path)
     folder_path = pathlib.Path(folder_path)
@@ -102,7 +102,7 @@ def load_modeling_data_with_classes(folder_path, tokenizer, shuffle=True) -> Tup
     if shuffle:
         raw_flows = raw_flows.sample(frac=1, random_state=1)
 
-    return raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns], raw_flows[TARGET_CLASS_COLUMN]
+    return raw_flows.filter(regex='raw_'), raw_flows[TARGET_CLASS_COLUMN]
 
 
 class PretrainDatasetWithClasses(Dataset):
@@ -110,9 +110,9 @@ class PretrainDatasetWithClasses(Dataset):
 
         self.tokenizer = tokenizer
 
-        raw_flows, targets = load_modeling_data_with_classes(folder_path, tokenizer)
+        raw_flows, targets = load_modeling_data_with_classes(folder_path)
 
-        self.raw_flows: np.ndarray = raw_flows.values
+        self.raw_flows: np.ndarray = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns].values
         self.targets: np.ndarray = targets.values
         logger.info('initialized dataset')
         tokenizer.add_class_tokens(self.target_classes)
