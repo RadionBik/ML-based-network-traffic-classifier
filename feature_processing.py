@@ -187,13 +187,19 @@ def _calc_unidirectional_flow_features(direction_slice, prefix='', features: Opt
     return features
 
 
+def inter_packet_times_from_timestamps(timestamps):
+    if len(timestamps) == 0:
+        return timestamps
+    next_timestamps = np.roll(timestamps, 1)
+    ipt = timestamps - next_timestamps
+    ipt[0] = 0
+    return ipt
+
+
 def _get_iat(raw_matrix):
     """ calcs inter-packet times """
     timestamps = raw_matrix[:, RMI.TIMESTAMP]
-    next_timestamps = np.roll(timestamps, 1)
-    iat = timestamps - next_timestamps
-    iat[0] = 0
-    return iat
+    return inter_packet_times_from_timestamps(timestamps)
 
 
 def _get_packet_features(raw_matrix):
