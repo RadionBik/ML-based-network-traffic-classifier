@@ -5,16 +5,19 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 
-from settings import BASE_DIR
+from settings import REPORT_DIR
 
 
 class Reporter:
-    def __init__(self, true, predicted, classifier_name: str, target_classes: Optional[list] = None):
+    def __init__(self, true, predicted,
+                 classifier_name: str,
+                 target_classes: Optional[list] = None,
+                 report_dir=REPORT_DIR):
         self.true = true
         self.predicted = predicted
         self.target_classes = target_classes if len(target_classes) > 0 else list(range(max(true) + 1))
         self.classifier_name = classifier_name
-        self.save_dir = BASE_DIR / 'reports'
+        self.save_dir = report_dir
         self.save_dir.mkdir(exist_ok=True)
 
     def scores(self):
