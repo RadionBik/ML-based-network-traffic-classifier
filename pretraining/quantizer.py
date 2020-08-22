@@ -17,10 +17,6 @@ except ImportError:
 from settings import logger, BASE_DIR
 
 
-def plot_packets(packet_features):
-    pd.DataFrame(packet_features).plot(kind='scatter', x=0, y=1, alpha=0.3, figsize=(12, 7), grid=True)
-
-
 def get_kmeans_mae(original, restored):
     s = np.abs(original - restored).sum()
     mae = np.abs(original - restored).mean()
