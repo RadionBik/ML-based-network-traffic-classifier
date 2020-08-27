@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-
 logging.basicConfig(level=logging.INFO,
                     format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -45,4 +44,7 @@ NEPTUNE_PROJECT = 'radion/traffic-classifier'
 @dataclass
 class FilePatterns:
     mawi = ('202004',)
-    external = ('raw_csv', '202004')
+    mawi_unswnb_iscxvpn = ('raw_csv', '202004')
+    iot_home = ('electronics', 'camera', '2020', 'enivronment', 'healthcare', 'home', 'hub', 'light', 'trigger')
+    mawi_iot_home = ('electronics', 'camera', '2020', 'enivronment', 'healthcare', 'home', 'hub', 'light',
+                     'trigger', '202004')

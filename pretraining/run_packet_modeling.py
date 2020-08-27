@@ -36,8 +36,7 @@ from transformers import (
 
 from pretraining.dataset import PretrainCollator, PretrainDataset, FinetuningDataset, PretrainDatasetWithClasses
 from pretraining.tokenizer import PacketTokenizer
-from pretraining.trainer import SeqTrainer
-from settings import BASE_DIR
+from settings import BASE_DIR, FilePatterns
 
 logger = logging.getLogger(__name__)
 
@@ -101,18 +100,28 @@ class DataTrainingArguments:
         default=False,
         metadata={"help": "specifies whether to include flow label as the first special token or to use a generic BOS"}
     )
+    file_patterns_to_exclude: str = field(
+        default='mawi',
+        metadata={"help": "specifies which file patterns from the data folder to exclude, defaults to empty,"
+                          " see settings.py::FilePatterns for used combinations"}
+    )
 
 
 def get_dataset(args: DataTrainingArguments, tokenizer: PacketTokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
     logger.info(f'block_size is {args.block_size} and likely unused')
+    file_patterns = getattr(FilePatterns, args.file_patterns_to_exclude)
     if args.finetune_on_class:
-        return FinetuningDataset(tokenizer=tokenizer, dataset_path=file_path, target_class=args.finetune_on_class)
+        return FinetuningDataset(tokenizer=tokenizer,
+                                 dataset_path=file_path,
+                                 target_class=args.finetune_on_class)
 
     if args.train_with_targets:
-        return PretrainDatasetWithClasses(tokenizer=tokenizer, folder_path=file_path)
+        return PretrainDatasetWithClasses(tokenizer=tokenizer,
+                                          folder_path=file_path,
+                                          filename_patterns_to_exclude=file_patterns)
 
-    return PretrainDataset(tokenizer=tokenizer, folder_path=file_path)
+    return PretrainDataset(tokenizer=tokenizer, folder_path=file_path, filename_patterns_to_exclude=file_patterns)
 
 
 def main():
