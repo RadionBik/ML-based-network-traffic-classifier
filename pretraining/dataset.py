@@ -60,11 +60,13 @@ class PretrainIterDataset(IterableDataset):
 
 
 class PretrainDataset(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, folder_path: str):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude: tuple):
         assert os.path.isdir(folder_path)
         # TODO feature caching, multiple workers?, filter out one-packet flows
 
-        self.source_files = list(pathlib.Path(folder_path).glob('*.csv'))
+        source_files = list(pathlib.Path(folder_path).glob('*.csv'))
+        source_files = list(filter(format_for_classification.check_filename_in_patterns, source_files))
+        self.source_files = source_files
         logger.info("initializing dataset from %s with %s files", folder_path, len(self.source_files))
 
         self.tokenizer = tokenizer
@@ -89,14 +91,18 @@ class PretrainDataset(Dataset):
                                                    return_attention_mask=True).data
 
 
-def load_modeling_data_with_classes(folder_path, shuffle=True) -> Tuple[pd.DataFrame, pd.Series]:
+def load_modeling_data_with_classes(
+        folder_path,
+        shuffle=True,
+        filename_patterns_to_exclude=FilePatterns.mawi
+) -> Tuple[pd.DataFrame, pd.Series]:
     assert os.path.isdir(folder_path)
-    logger.info("initializing dataset from %s", folder_path)
+    logger.info(f"initializing dataset from {folder_path}, excluding {filename_patterns_to_exclude}")
     folder_path = pathlib.Path(folder_path)
 
     raw_flows = format_for_classification.prepare_data(folder_path,
                                                        remove_garbage=False,
-                                                       filename_patterns_to_exclude=FilePatterns.mawi)
+                                                       filename_patterns_to_exclude=filename_patterns_to_exclude)
     # skip 1-packet and empty flows
     raw_flows.dropna(axis=0, subset=['raw_packet0', 'raw_packet1'], inplace=True, how='any')
     if shuffle:
@@ -106,11 +112,12 @@ def load_modeling_data_with_classes(folder_path, shuffle=True) -> Tuple[pd.DataF
 
 
 class PretrainDatasetWithClasses(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, folder_path: str):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude):
 
         self.tokenizer = tokenizer
 
-        raw_flows, targets = load_modeling_data_with_classes(folder_path)
+        raw_flows, targets = load_modeling_data_with_classes(folder_path,
+                                                             filename_patterns_to_exclude=filename_patterns_to_exclude)
 
         self.raw_flows: np.ndarray = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns].values
         self.targets: np.ndarray = targets.values

@@ -1,18 +1,21 @@
 import pathlib
+from functools import partial
 
 import numpy as np
 import pandas as pd
 import scipy
+import matplotlib.pyplot as plt
 
 from datasets import read_dataset
 from feature_processing import inter_packet_times_from_timestamps
 from pretraining.dataset import load_modeling_data_with_classes
-from settings import REPORT_DIR, logger
+from settings import REPORT_DIR, logger, FilePatterns
 
 
 def convert_ipt_to_iat(flows):
     """ converts IPT (timing between 2 any packets) to IAT
         (timing between 2 consecutive packets within 1 direction) """
+
     def ipt_to_iat(flow):
         """
         :param flow: source flow of size (packet_num, feature_num=2)
@@ -38,8 +41,20 @@ def convert_ipt_to_iat(flows):
     return iat_packets
 
 
-def plot_packets(packet_features):
-    pd.DataFrame(packet_features).plot(kind='scatter', x=0, y=1, alpha=0.3, figsize=(12, 7), grid=True)
+def plot_packets(packet_features, limit_packet_scale=False, save_to=None):
+    if isinstance(packet_features, pd.DataFrame):
+        packet_features = packet_features.values
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+    plt.scatter(packet_features[:, 0], packet_features[:, 1], alpha=0.3)
+    ax.set_title(f'n={packet_features.shape[0]}')
+    if limit_packet_scale:
+        ax.set_xlim(-1, 1)
+    ax.grid(True)
+    ax.set_xlabel('packet size / 1500')
+    ax.set_ylabel('log10(inter-packet time, µs)')
+    if save_to:
+        plt.savefig(save_to)
 
 
 def packets_per_flow(flows):
@@ -52,15 +67,54 @@ def flows_to_packets(flows):
     return flows[~np.isnan(flows)].reshape(-1, 2)
 
 
+def handle_estimation_exceptions(func):
+    def real_decorator(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f'{func.__name__}: {e}')
+            return np.nan
+
+    return real_decorator
+
+
+@handle_estimation_exceptions
+def estimate_pdf(samples):
+    x_values = np.linspace(0, max(samples), 100)
+    kde = scipy.stats.gaussian_kde(samples)(x_values)
+    kde /= sum(kde)
+    return kde
+
+
+@handle_estimation_exceptions
 def get_kl_divergence_continuous(orig_values, gen_values):
-    try:
-        x_values = np.linspace(0, max(orig_values), 100)
-        kde_orig = scipy.stats.gaussian_kde(orig_values)(x_values)
-        kde_gen = scipy.stats.gaussian_kde(gen_values)(x_values)
-        return scipy.stats.entropy(kde_orig, kde_gen)
-    except Exception as e:
-        logger.error(f'cannot get KDE of value(s), reason: {e}')
-        return np.nan
+    kde_orig = estimate_pdf(orig_values)
+    kde_gen = estimate_pdf(gen_values)
+    return scipy.stats.entropy(kde_orig, kde_gen)
+
+
+@handle_estimation_exceptions
+def get_wasserstein_distance_pdf(orig_values, gen_values):
+    kde_orig = estimate_pdf(orig_values)
+    kde_gen = estimate_pdf(gen_values)
+    return scipy.stats.wasserstein_distance(kde_orig, kde_gen)
+
+
+@handle_estimation_exceptions
+def get_ks_stat(orig_values, gen_values):
+    ks = scipy.stats.ks_2samp(orig_values, gen_values)
+    return ks.statistic
+
+
+def scaled_diff(orig, gen):
+    return np.abs(orig - gen) / orig
+
+
+@handle_estimation_exceptions
+def scaled_diff_at_percentile(orig, gen, percentile):
+    o = np.percentile(orig, percentile)
+    g = np.percentile(gen, percentile)
+    return scaled_diff(o, g)
 
 
 def packets_to_throughput(packets, resolution='1S'):
@@ -74,15 +128,7 @@ def packets_to_throughput(packets, resolution='1S'):
 
 
 def evaluate_generated_traffic(src_flows: np.ndarray, gen_flows: np.ndarray) -> dict:
-    distance_packets_per_flow = get_kl_divergence_continuous(
-        packets_per_flow(src_flows),
-        packets_per_flow(gen_flows)
-    )
-
-    common_metrics = {
-        'KL div n_packets/flow': distance_packets_per_flow,
-        'N flows': min(src_flows.shape[0], gen_flows.shape[0])
-    }
+    logger.info('starting evaluation of flows...')
     src_packets = flows_to_packets(convert_ipt_to_iat(src_flows))
     gen_packets = flows_to_packets(convert_ipt_to_iat(gen_flows))
 
@@ -96,30 +142,51 @@ def evaluate_generated_traffic(src_flows: np.ndarray, gen_flows: np.ndarray) -> 
     server_gen_packets = gen_packets[~client_gen_mask]
 
     throughput = {
-        'Src avg throughput bytes/s (client)': np.mean(packets_to_throughput(client_src_packets)),
-        'Gen avg throughput bytes/s (client)': np.mean(packets_to_throughput(client_gen_packets)),
-        'Src avg throughput bytes/s (server)': np.mean(packets_to_throughput(server_src_packets)),
-        'Gen avg throughput bytes/s (server)': np.mean(packets_to_throughput(server_gen_packets)),
+        'src_avg_throughput_bytes_per_s_client': np.mean(packets_to_throughput(client_src_packets)),
+        'gen_avg_throughput_bytes_per_s_client': np.mean(packets_to_throughput(client_gen_packets)),
+        'src_avg_throughput_bytes_per_s_server': np.mean(packets_to_throughput(server_src_packets)),
+        'gen_avg_throughput_bytes_per_s_server': np.mean(packets_to_throughput(server_gen_packets)),
     }
 
-    per_direction_kl_divergences = {
-        'KL div PS  (client)': get_kl_divergence_continuous(client_src_packets[:, 0], client_gen_packets[:, 0]),
-        'KL div IAT (client)': get_kl_divergence_continuous(client_src_packets[:, 1], client_gen_packets[:, 1]),
-        'KL div PS  (server)': get_kl_divergence_continuous(server_src_packets[:, 0], server_gen_packets[:, 0]),
-        'KL div IAT (server)': get_kl_divergence_continuous(server_src_packets[:, 1], server_gen_packets[:, 1]),
-        'KL div throughput (client)': get_kl_divergence_continuous(packets_to_throughput(client_src_packets),
-                                                                   packets_to_throughput(client_gen_packets)),
-        'KL div throughput (server)': get_kl_divergence_continuous(packets_to_throughput(server_src_packets),
-                                                                   packets_to_throughput(server_gen_packets)),
-    }
+    metrics = {}
 
-    return dict(**common_metrics, **per_direction_kl_divergences, **throughput)
+    for metric_name, metric_function in [
+        ('KL', get_kl_divergence_continuous),
+        # ('Wasserstein', get_wasserstein_distance_pdf),
+        ('KS_2sample', get_ks_stat),
+        ('10th_percentile', partial(scaled_diff_at_percentile, percentile=10)),
+        # ('25th_percentile', partial(scaled_diff_at_percentile, percentile=25)),
+        ('50th_percentile', partial(scaled_diff_at_percentile, percentile=50)),
+        # ('75th_percentile', partial(scaled_diff_at_percentile, percentile=75)),
+        ('90th_percentile', partial(scaled_diff_at_percentile, percentile=90))
+
+    ]:
+        metrics.update({
+            metric_name + '_packets_per_flow': metric_function(packets_per_flow(src_flows), packets_per_flow(gen_flows)),
+            metric_name + '_PS_client': metric_function(client_src_packets[:, 0], client_gen_packets[:, 0]),
+            metric_name + '_IAT_client': metric_function(client_src_packets[:, 1], client_gen_packets[:, 1]),
+            metric_name + '_PS_server': metric_function(server_src_packets[:, 0], server_gen_packets[:, 0]),
+            metric_name + '_IAT_server': metric_function(server_src_packets[:, 1], server_gen_packets[:, 1]),
+            metric_name + '_thrpt_client': metric_function(packets_to_throughput(client_src_packets),
+                                                           packets_to_throughput(client_gen_packets)),
+            f'{metric_name}_thrpt_server': metric_function(packets_to_throughput(server_src_packets),
+                                                           packets_to_throughput(server_gen_packets)),
+        })
+
+    common_metrics = {
+        'n_flows': min(src_flows.shape[0], gen_flows.shape[0])
+    }
+    return dict(**common_metrics, **metrics, **throughput)
+
+
+def save_metrics(metrics: dict, save_to):
+    pd.DataFrame(metrics).T.to_csv(save_to)
 
 
 def main():
-
-    generated_folder = pathlib.Path('/media/raid_store/pretrained_traffic/generated_flows_gpt2_model_2epochs_classes')
-    all_source_flows, classes = load_modeling_data_with_classes('/media/raid_store/pretrained_traffic/train_csv')
+    generated_folder = pathlib.Path('/media/raid_store/pretrained_traffic/generated_flows_gpt2_model_4_6epochs_classes_home_iot')
+    all_source_flows, classes = load_modeling_data_with_classes('/media/raid_store/pretrained_traffic/train_csv',
+                                                                filename_patterns_to_exclude=FilePatterns.external)
 
     metrics = {}
     for file in generated_folder.glob('*.csv'):
@@ -127,7 +194,7 @@ def main():
         src_flows = all_source_flows[classes == file.stem]
         results = evaluate_generated_traffic(src_flows.values, gen_flows.values)
         metrics[file.stem] = results
-    pd.DataFrame(metrics).to_csv(REPORT_DIR / ('report_' + generated_folder.stem))
+    save_metrics(metrics, REPORT_DIR / ('report_' + generated_folder.stem + '.csv'))
 
 
 if __name__ == '__main__':
