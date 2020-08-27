@@ -154,7 +154,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
             flow[flow_end_idx:] = self.packet_quantizer.non_packet_value
         return flow
 
-    def batch_decode(self, tokenized_flows, **kwargs) -> np.ndarray:
+    def batch_decode_packets(self, tokenized_flows) -> np.ndarray:
         if isinstance(tokenized_flows, torch.Tensor):
             tokenized_flows = tokenized_flows.numpy()
         clusters_only = np.apply_along_axis(self._remove_special_tokens, axis=1, arr=tokenized_flows)

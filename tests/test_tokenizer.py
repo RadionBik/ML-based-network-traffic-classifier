@@ -68,7 +68,7 @@ def test_tokenize_detokenize(quantizer_checkpoint, raw_dataset):
     encoded = tokenizer.batch_encode_packets(raw_dataset)
     tokens = encoded['input_ids']
     # since the model limit 128 > 20 in raw_features, we do not expect truncating
-    decoded = tokenizer.batch_decode(tokens)
+    decoded = tokenizer.batch_decode_packets(tokens)
     assert _estimate_normalized_packet_difference(raw_dataset.values, decoded) < 0.0003
 
 
