@@ -59,10 +59,10 @@ def main():
         default=0.0,
     )
     parser.add_argument(
-        '--log_neptune',
-        dest='log_neptune',
+        '--disable_neptune',
+        dest='disable_neptune',
         action='store_true',
-        default=True
+        default=False
     )
     parser.add_argument(
         '--neptune_experiment_name',
@@ -74,6 +74,7 @@ def main():
     if args.learning_rate is None:
         args.learning_rate = 0.0005 if args.freeze_pretrained_model else 0.00002
 
+    print(args)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     tokenizer = PacketTokenizer.from_pretrained(args.pretrained_path, flow_size=DEFAULT_PACKET_LIMIT_PER_FLOW)
@@ -131,7 +132,7 @@ def main():
     )
 
     logger = NeptuneLogger(
-        offline_mode=not args.log_neptune,
+        offline_mode=args.disable_neptune,
         close_after_fit=False,
         project_name=NEPTUNE_PROJECT,
         experiment_name=args.neptune_experiment_name,

@@ -26,6 +26,16 @@ def read_dataset(filename, fill_na=False) -> pd.DataFrame:
     return dataset
 
 
+def check_filename_in_patterns(file, patterns):
+    if isinstance(file, pathlib.Path):
+        file = file.name
+
+    if patterns and any(pattern in file for pattern in patterns):
+        logger.info(f'skipping {file} due to "filename_patterns_to_exclude"')
+        return True
+    return False
+
+
 def _load_parsed_results(dir_with_parsed_csvs, filename_patterns_to_exclude: Iterable[str]):
     dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
 
@@ -37,8 +47,7 @@ def _load_parsed_results(dir_with_parsed_csvs, filename_patterns_to_exclude: Ite
     iot_categories = set(item.category for item in IOT_DEVICES)
     for csv_file in parsed_csvs:
         # skip non-home and IoT files
-        if filename_patterns_to_exclude and any(pattern in csv_file.name for pattern in filename_patterns_to_exclude):
-            logger.info(f'skipping {csv_file} due to "filename_patterns_to_exclude"')
+        if check_filename_in_patterns(csv_file, filename_patterns_to_exclude):
             continue
 
         traffic_df = read_dataset(csv_file)
@@ -176,7 +185,8 @@ def prepare_data(csv_dir, remove_garbage=True, filename_patterns_to_exclude=None
 
 
 def main():
-    excluded_patterns = FilePatterns.external
+    pattern_name = 'mawi_unswnb_iscxvpn'
+    excluded_patterns = getattr(FilePatterns, 'mawi_unswnb_iscxvpn')
     train_df = prepare_data('/media/raid_store/pretrained_traffic/train_csv',
                             filename_patterns_to_exclude=excluded_patterns)
     eval_df = prepare_data('/media/raid_store/pretrained_traffic/val_csv',
@@ -191,8 +201,8 @@ def main():
     test_df, _ = prune_targets(test_df, underrepresented_protos=underrepresented_protos)
 
     suffix = get_hash(tr_val_df)
-    save_dataset(tr_val_df, save_to=BASE_DIR / f'datasets/train_{suffix}.csv')
-    save_dataset(test_df, save_to=BASE_DIR / f'datasets/test_{suffix}.csv')
+    save_dataset(tr_val_df, save_to=BASE_DIR / f'datasets/train_{suffix}_no_{pattern_name}.csv')
+    save_dataset(test_df, save_to=BASE_DIR / f'datasets/test_{suffix}_{pattern_name}.csv')
 
 
 if __name__ == '__main__':
