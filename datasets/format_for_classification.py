@@ -3,7 +3,7 @@ import logging
 import pathlib
 
 import pandas as pd
-from typing import Iterable
+from typing import Iterable, Optional
 
 from pcap_files.preprocess_lan_pcaps import IOT_DEVICES
 from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR, FilePatterns
@@ -36,7 +36,7 @@ def check_filename_in_patterns(file, patterns):
     return False
 
 
-def _load_parsed_results(dir_with_parsed_csvs, filename_patterns_to_exclude: Iterable[str]):
+def _load_parsed_results(dir_with_parsed_csvs, filename_patterns_to_exclude: Optional[Iterable[str]]):
     dir_with_parsed_csvs = pathlib.Path(dir_with_parsed_csvs)
 
     parsed_csvs = list(dir_with_parsed_csvs.glob('*.csv'))

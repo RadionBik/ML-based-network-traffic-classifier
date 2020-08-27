@@ -94,7 +94,7 @@ class PretrainDataset(Dataset):
 def load_modeling_data_with_classes(
         folder_path,
         shuffle=True,
-        filename_patterns_to_exclude=FilePatterns.mawi
+        filename_patterns_to_exclude=None
 ) -> Tuple[pd.DataFrame, pd.Series]:
     assert os.path.isdir(folder_path)
     logger.info(f"initializing dataset from {folder_path}, excluding {filename_patterns_to_exclude}")

@@ -1,6 +1,7 @@
 import pathlib
 from functools import partial
 
+import argparse
 import numpy as np
 import pandas as pd
 import scipy
@@ -184,9 +185,29 @@ def save_metrics(metrics: dict, save_to):
 
 
 def main():
-    generated_folder = pathlib.Path('/media/raid_store/pretrained_traffic/generated_flows_gpt2_model_4_6epochs_classes_home_iot')
-    all_source_flows, classes = load_modeling_data_with_classes('/media/raid_store/pretrained_traffic/train_csv',
-                                                                filename_patterns_to_exclude=FilePatterns.external)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--source_dataset',
+        help='path to preprocessed .csv dataset',
+        default='/media/raid_store/pretrained_traffic/train_csv'
+    )
+    parser.add_argument(
+        '--generated_dataset',
+        default='/media/raid_store/pretrained_traffic/generated_flows_gpt2_model_4_6epochs_classes_home_iot'
+    )
+    parser.add_argument(
+        '--filename_patterns_to_exclude',
+        default='mawi',
+        help='see settings.py::FilePatterns for the options'
+    )
+    args = parser.parse_args()
+    filename_patterns_to_exclude = getattr(FilePatterns, args.filename_patterns_to_exclude)
+
+    generated_folder = pathlib.Path(args.generated_dataset)
+    all_source_flows, classes = load_modeling_data_with_classes(
+        args.source_dataset,
+        filename_patterns_to_exclude=filename_patterns_to_exclude
+    )
 
     metrics = {}
     for file in generated_folder.glob('*.csv'):
