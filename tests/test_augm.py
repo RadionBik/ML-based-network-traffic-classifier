@@ -12,7 +12,7 @@ def test_norm():
     x = np.array([[10, 0, ], [4, 16]])
 
     n_x = markov._normalize_by_rows(x)
-    exp_x = np.array([[1., 0.], [0.2425, 0.9701]])
+    exp_x = np.array([[1., 0.], [0.2, 0.8]])
     assert np.isclose(exp_x, n_x, rtol=1e-3).all()
 
 
@@ -22,7 +22,7 @@ def test_calc_transition_matrix(quantized_packets):
         state_numb=np.unique(quantized_packets).size
     )
     # 0 is the reccurent state
-    assert trans_matrix[0, 0] == 1
+    assert np.isclose(trans_matrix[0, 0], 1, atol=1e-6)
 
 
 def test_priors(quantized_packets):

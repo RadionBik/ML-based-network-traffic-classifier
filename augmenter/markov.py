@@ -15,7 +15,8 @@ def _normalize_by_rows(x: np.array):
 
 def _calc_transition_matrix(seq_matrix, state_numb):
     """ here the states are expected to be integers in [0, state_numb) """
-    transition_matrix = np.zeros((state_numb, state_numb))
+    # init with values close-to-zero for smoothing
+    transition_matrix = np.ones((state_numb, state_numb)) * 1e-6
     for row_iter in range(seq_matrix.shape[0]):
         state_seq = seq_matrix[row_iter, :]
         # count number of each possible transition
@@ -24,12 +25,6 @@ def _calc_transition_matrix(seq_matrix, state_numb):
             k = state_seq[t + 1]
             transition_matrix[j, k] += 1
 
-    empty_rows = np.where(transition_matrix.sum(axis=1) == 0)
-    empty_row_number = empty_rows[0].size
-    if empty_row_number > 0:
-        logger.warning(f'found {empty_row_number} empty rows in transition matrix, padding')
-        # pad empty transition rows uniformly
-        transition_matrix[empty_rows, :] = np.ones((empty_row_number, transition_matrix.shape[0]))
     norm_trans_matrix = _normalize_by_rows(transition_matrix)
     logger.info(f'estimated transition matrix for {norm_trans_matrix.shape[0]} states')
     return norm_trans_matrix
@@ -61,6 +56,7 @@ class MarkovGenerator(BaseGenerator):
         self.value2index = {}
         self._seq_len = None
         self._states = None
+        logger.info('init MarkovGenerator')
 
     def _map_values_to_indexes(self, X):
         orig_values = X.flatten()
@@ -83,6 +79,7 @@ class MarkovGenerator(BaseGenerator):
 
         self.transition_matrix = _calc_transition_matrix(X_mapped, n_states)
         self.init_priors = _calc_prior_probas(X_mapped, n_states)
+        return self
 
     def sample(self, n_sequences):
         assert n_sequences > 0
