@@ -31,7 +31,7 @@ def check_filename_in_patterns(file, patterns):
         file = file.name
 
     if patterns and any(pattern in file for pattern in patterns):
-        logger.info(f'skipping {file} due to "filename_patterns_to_exclude"')
+        logger.info(f'file {file} matches a pattern')
         return True
     return False
 

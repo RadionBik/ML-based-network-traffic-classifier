@@ -65,7 +65,10 @@ class PretrainDataset(Dataset):
         # TODO feature caching, multiple workers?, filter out one-packet flows
 
         source_files = list(pathlib.Path(folder_path).glob('*.csv'))
-        source_files = list(filter(format_for_classification.check_filename_in_patterns, source_files))
+        file_matcher = partial(format_for_classification.check_filename_in_patterns,
+                               patterns=filename_patterns_to_exclude)
+        source_files = list(file for file in source_files if not file_matcher(file))
+        print(source_files)
         self.source_files = source_files
         logger.info("initializing dataset from %s with %s files", folder_path, len(self.source_files))
 
