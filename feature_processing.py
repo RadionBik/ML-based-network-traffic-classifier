@@ -4,13 +4,14 @@ from typing import Tuple, Union, Optional
 
 import numpy as np
 import pandas as pd
+from pandarallel import pandarallel
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import LabelEncoder, StandardScaler, FunctionTransformer
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
-from settings import TARGET_CLASS_COLUMN
-
+from pretraining.evaluate_generated import flows_to_packets
 from raw_packets_nfplugin import raw_packets_matrix as RMI
+from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,33 @@ class Featurizer:
             logger.warning(f'skipping the following categorical features: '
                            f'{set(self.categorical_features) - data_features}')
             self.categorical_features = found_features
+
+    def calc_packets_stats_from_raw(self, data: pd.DataFrame):
+
+        def calc_flow_packet_stats(flow):
+            subflow = flow[:2*DEFAULT_PACKET_LIMIT_PER_FLOW]
+            packets = flows_to_packets(subflow)
+            packets_from = packets[packets[:, 0] > 0, 0]
+            packets_to = packets[packets[:, 0] < 0, 0] * -1
+            try:
+                from_stats = calc_parameter_stats(packets_from, FEATURE_PREFIX.client, 'packet')
+            except ValueError:
+                from_stats = {}
+            try:
+                to_stats = calc_parameter_stats(packets_to, FEATURE_PREFIX.server, 'packet')
+            except ValueError:
+                to_stats = {}
+            return dict(**from_stats, **to_stats)
+
+        if any(column in CONTINUOUS_NAMES for column in data.columns):
+            logger.warning('packet stats has been found in dataframe, skipping')
+            return data
+        raw = data.filter(regex='raw_')
+        pandarallel.initialize()
+        packet_stats = raw.parallel_apply(calc_flow_packet_stats, axis=1, raw=True, result_type='expand').tolist()
+        packet_stats = pd.DataFrame(packet_stats).fillna(0)
+        logger.info('calculated packet stats from raw packet sizes')
+        return data.join(packet_stats)
 
     def _fit_transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """ init transformers upon actual fitting to check for non-existing columns """
@@ -160,19 +188,20 @@ def _safe_vector_getter(vector, indexer) -> Union[int, float]:
         return np.nan
 
 
-def calc_parameter_stats(feature_slice, prefix, feature_name):
-    return {prefix + feature_name + '0': _safe_vector_getter(feature_slice, 0),
-            prefix + feature_name + '1': _safe_vector_getter(feature_slice, 1),
-            prefix + feature_name + '_max': np.max(feature_slice),
-            prefix + feature_name + '_min': np.min(feature_slice),
-            prefix + feature_name + '_avg': np.mean(feature_slice),
-            prefix + feature_name + '_median': np.median(feature_slice),
-            prefix + feature_name + '_25q': np.percentile(feature_slice, 25),
-            prefix + feature_name + '_75q': np.percentile(feature_slice, 75),
-            prefix + feature_name + '_bytes': np.sum(feature_slice),
-            # counting non-empty bulks (packets with payload)
-            prefix + feature_name + '_number': feature_slice[feature_slice > 0].shape[0]
-            }
+def calc_parameter_stats(feature_slice, prefix, feature_name) -> dict:
+    return {
+        prefix + feature_name + '0': _safe_vector_getter(feature_slice, 0),
+        prefix + feature_name + '1': _safe_vector_getter(feature_slice, 1),
+        prefix + feature_name + '_max': np.max(feature_slice),
+        prefix + feature_name + '_min': np.min(feature_slice),
+        prefix + feature_name + '_avg': np.mean(feature_slice),
+        prefix + feature_name + '_median': np.median(feature_slice),
+        prefix + feature_name + '_25q': np.percentile(feature_slice, 25),
+        prefix + feature_name + '_75q': np.percentile(feature_slice, 75),
+        prefix + feature_name + '_bytes': np.sum(feature_slice),
+        # counting non-empty bulks (packets with payload)
+        prefix + feature_name + '_number': feature_slice[feature_slice > 0].shape[0]
+    }
 
 
 def _calc_unidirectional_flow_features(direction_slice, prefix='', features: Optional[list] = None) -> dict:

@@ -50,7 +50,7 @@ def _parse_args():
         default=DEFAULT_PACKET_LIMIT_PER_FLOW
     )
 
-    parser.add_argument('--log-neptune', dest='log_neptune', action='store_true', default=True)
+    parser.add_argument('--log-neptune', dest='log_neptune', action='store_true', default=False)
     args = parser.parse_args()
     return args
 
@@ -72,6 +72,10 @@ def main():
         consider_tcp_flags=False,
         consider_raw_feature_iat=False
     )
+    if args.continuous:
+        df_train = featurizer.calc_packets_stats_from_raw(df_train)
+        df_test = featurizer.calc_packets_stats_from_raw(df_test)
+
     X_train, y_train = featurizer.fit_transform_encode(df_train)
     X_test, y_test = featurizer.transform_encode(df_test)
 
