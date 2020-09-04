@@ -21,6 +21,7 @@ py/
 *.docx
 *.doc
 *.odt
+*.pdf
 
 # config
 *.yaml
