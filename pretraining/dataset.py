@@ -13,7 +13,7 @@ from torch.utils.data.dataset import IterableDataset, Dataset
 from transformers import BatchEncoding
 
 from datasets import format_for_classification
-from settings import logger, TARGET_CLASS_COLUMN, FilePatterns
+from settings import logger, TARGET_CLASS_COLUMN
 from .tokenizer import PacketTokenizer
 
 
@@ -60,7 +60,7 @@ class PretrainIterDataset(IterableDataset):
 
 
 class PretrainDataset(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude: tuple):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude: tuple = ()):
         assert os.path.isdir(folder_path)
         # TODO feature caching, multiple workers?, filter out one-packet flows
 
@@ -115,7 +115,7 @@ def load_modeling_data_with_classes(
 
 
 class PretrainDatasetWithClasses(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude):
+    def __init__(self, tokenizer: PacketTokenizer, folder_path: str, filename_patterns_to_exclude: tuple = ()):
 
         self.tokenizer = tokenizer
 
