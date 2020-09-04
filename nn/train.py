@@ -59,6 +59,11 @@ def main():
         default=0.0,
     )
     parser.add_argument(
+        '--reinitialize',
+        action='store_true',
+        default=False
+    )
+    parser.add_argument(
         '--disable_neptune',
         dest='disable_neptune',
         action='store_true',
@@ -120,7 +125,8 @@ def main():
         class_labels,
         pretrained_model_path=args.pretrained_path,
         dropout=args.fc_dropout,
-        freeze_pretrained_part=args.freeze_pretrained_model
+        freeze_pretrained_part=args.freeze_pretrained_model,
+        reinitialize=args.reinitialize
     )
 
     early_stop_callback = EarlyStopping(

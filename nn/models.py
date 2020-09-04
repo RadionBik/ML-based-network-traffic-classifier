@@ -1,5 +1,6 @@
 from typing import List
 
+import logging
 import torch
 from pytorch_lightning import LightningModule
 from torch.nn import functional as F
@@ -10,6 +11,7 @@ from transformers.trainer_utils import set_seed
 from report import Reporter
 
 set_seed(1)
+logger = logging.getLogger(__file__)
 
 
 class BaseClassifier(LightningModule):
@@ -115,10 +117,22 @@ class BiGRUClassifier(BaseClassifier):
 
 
 class GPT2Classifier(BaseClassifier):
-    def __init__(self, config, class_labels, pretrained_model_path, dropout=0.1, freeze_pretrained_part=True):
+    def __init__(
+            self,
+            config,
+            class_labels,
+            pretrained_model_path,
+            dropout=0.1,
+            freeze_pretrained_part=True,
+            reinitialize=False
+    ):
         super().__init__(config, class_labels)
 
         self.gpt2 = GPT2Model.from_pretrained(pretrained_model_path)
+        if reinitialize:
+            logger.info('resetting model weights')
+            self.gpt2.init_weights()
+
         self.dropout = torch.nn.Dropout(dropout)
         self.fc = torch.nn.Linear(self.gpt2.config.n_embd, self.output_dim)
         if freeze_pretrained_part:
