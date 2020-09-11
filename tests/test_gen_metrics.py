@@ -1,4 +1,4 @@
-from pretraining.evaluate_generated import get_ks_stat, get_wasserstein_distance_pdf
+from evaluation_utils.modeling import get_ks_stat, get_wasserstein_distance_pdf
 import numpy as np
 
 

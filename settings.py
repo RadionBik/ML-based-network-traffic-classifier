@@ -11,7 +11,7 @@ logger = logging.getLogger()
 
 
 def _read_protocol_mapping() -> dict:
-    map_file = BASE_DIR / 'static/ip_proto_map.csv'
+    map_file = BASE_DIR / 'flow_parsing/static/ip_proto_map.csv'
     pairs = pd.read_csv(map_file, header=None)
     return dict(pairs.values.tolist())
 
@@ -43,8 +43,8 @@ NEPTUNE_PROJECT = 'radion/traffic-classifier'
 
 @dataclass
 class FilePatterns:
-    mawi = ('202004',)
-    mawi_unswnb_iscxvpn = ('raw_csv', '202004')
-    iot_home = ('electronics', 'camera', '2020', 'environment', 'healthcare', 'home', 'hub', 'light', 'trigger')
-    mawi_iot_home = ('electronics', 'camera', '2020', 'environment', 'healthcare', 'home', 'hub', 'light',
-                     'trigger', '202004')
+    mawi: tuple = ('202004',)
+    mawi_unswnb_iscxvpn: tuple = ('raw_csv', '202004')
+    iot_home: tuple = ('electronics', 'camera', '2020', 'environment', 'healthcare', 'home', 'hub', 'light', 'trigger')
+    mawi_iot_home: tuple = ('electronics', 'camera', '2020', 'environment', 'healthcare', 'home', 'hub', 'light',
+                            'trigger', '202004')

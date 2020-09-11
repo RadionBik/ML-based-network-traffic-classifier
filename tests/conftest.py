@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import feature_processing
+from flow_parsing import features
 import settings
 
 
@@ -44,9 +44,9 @@ def classif_config():
 def raw_matrix():
     size = 10
     raw_feature_matrix = np.zeros((size, 7))
-    raw_feature_matrix[:, feature_processing.RMI.TIMESTAMP] = np.array(range(12312, size + 12312))
-    raw_feature_matrix[:, feature_processing.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
-    raw_feature_matrix[:, feature_processing.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
+    raw_feature_matrix[:, features.RMI.TIMESTAMP] = np.array(range(12312, size + 12312))
+    raw_feature_matrix[:, features.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
+    raw_feature_matrix[:, features.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
     return raw_feature_matrix
 
 
@@ -64,4 +64,4 @@ def quantizer_checkpoint():
 
 @pytest.fixture
 def pcap_example_path():
-    return (settings.BASE_DIR / 'pcap_files/example.pcap').as_posix()
+    return (settings.BASE_DIR / 'flow_parsing/static/example.pcap').as_posix()

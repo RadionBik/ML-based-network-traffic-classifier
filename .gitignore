@@ -9,6 +9,7 @@ __pycache__/
 .~*
 #figures/
 figures/*.*
+reports/
 trained_classifiers/*.*
 #old code
 py/
@@ -31,8 +32,8 @@ config.ini
 csv_files
 bin
 *.pcap
-!pcap_files/example.pcap
+!flow_parsing/static/example.pcap
 
-# pretraining artifacts
+# gpt_model artifacts
 trial_txt_gpt2
 trained_quantizers

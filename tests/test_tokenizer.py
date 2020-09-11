@@ -3,9 +3,9 @@ import pathlib
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pretraining.dataset import PretrainIterDataset, PretrainCollator, PretrainDataset, PretrainDatasetWithClasses
-from pretraining.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
-from pretraining.tokenizer import PacketTokenizer
+from gpt_model.generator.dataset import PretrainIterDataset, PretrainCollator, PretrainDataset, PretrainDatasetWithClasses
+from gpt_model.quantizer import PacketScaler, init_sklearn_kmeans_from_checkpoint, PacketQuantizer
+from gpt_model.tokenizer import PacketTokenizer
 
 np.random.seed(1)
 

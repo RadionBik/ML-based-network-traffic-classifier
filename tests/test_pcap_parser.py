@@ -3,13 +3,12 @@ import json
 import numpy as np
 import pandas as pd
 
-import feature_processing
-import flow_parser
+from flow_parsing import pcap_parser, features
 
 
 def test_feature_persistence(pcap_example_path):
-    features = flow_parser.parse_features_to_dataframe(pcap_example_path)
-    features2 = flow_parser.parse_features_to_dataframe(pcap_example_path)
+    features = pcap_parser.parse_pcap_to_dataframe(pcap_example_path)
+    features2 = pcap_parser.parse_pcap_to_dataframe(pcap_example_path)
     assert features.equals(features2)
 
 
@@ -20,7 +19,7 @@ def _serialize_tcp_flag(x):
 
 
 def test_parser_output(dataset, pcap_example_path):
-    parsed_features = flow_parser.parse_features_to_dataframe(pcap_example_path, online_mode=False)
+    parsed_features = pcap_parser.parse_pcap_to_dataframe(pcap_example_path, online_mode=False)
     parsed_features = parsed_features.apply(_serialize_tcp_flag, axis=1)
     dataset = dataset.astype(parsed_features.dtypes)
     pd.testing.assert_frame_equal(parsed_features, dataset,
@@ -30,10 +29,10 @@ def test_parser_output(dataset, pcap_example_path):
 
 
 def test_raw_parser_output(raw_dataset, pcap_example_path):
-    parsed_features = flow_parser.parse_features_to_dataframe(pcap_example_path,
-                                                              derivative_features=False,
-                                                              raw_features=20,
-                                                              online_mode=False)
+    parsed_features = pcap_parser.parse_pcap_to_dataframe(pcap_example_path,
+                                                          derivative_features=False,
+                                                          raw_features=20,
+                                                          online_mode=False)
     parsed_features = parsed_features.filter(regex='raw')
     pd.testing.assert_frame_equal(parsed_features, raw_dataset,
                                   check_less_precise=2,
@@ -42,8 +41,8 @@ def test_raw_parser_output(raw_dataset, pcap_example_path):
 
 
 def test_raw_model_features(raw_matrix):
-    iat_features = feature_processing._get_iat(raw_matrix)
-    packet_features = feature_processing._get_packet_features(raw_matrix)
+    iat_features = features._get_iat(raw_matrix)
+    packet_features = features._get_packet_features(raw_matrix)
     model_features = np.vstack([iat_features, packet_features]).T
     expected = np.array([[0, -13],
                         [1, 54],
