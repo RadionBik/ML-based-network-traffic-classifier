@@ -1,4 +1,5 @@
-from pretraining.evaluate_generated import convert_ipt_to_iat, flows_to_packets, evaluate_generated_traffic
+from pretraining.evaluate_generated import convert_ipt_to_iat, evaluate_generated_traffic
+from feature_processing import flows_to_packets
 
 
 def test_splitting_by_directions(raw_dataset):

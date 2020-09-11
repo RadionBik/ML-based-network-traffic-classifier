@@ -8,7 +8,7 @@ import scipy
 import matplotlib.pyplot as plt
 
 from datasets import read_dataset
-from feature_processing import inter_packet_times_from_timestamps
+from feature_processing import inter_packet_times_from_timestamps, flows_to_packets
 from pretraining.dataset import load_modeling_data_with_classes
 from settings import REPORT_DIR, logger, FilePatterns
 
@@ -42,30 +42,26 @@ def convert_ipt_to_iat(flows):
     return iat_packets
 
 
-def plot_packets(packet_features, limit_packet_scale=False, save_to=None):
+def plot_packets(packet_features, limit_packet_scale=False, save_to=None, ru_lang=False):
     if isinstance(packet_features, pd.DataFrame):
         packet_features = packet_features.values
 
     fig, ax = plt.subplots(figsize=(12, 7))
     plt.scatter(packet_features[:, 0], packet_features[:, 1], alpha=0.3)
-    ax.set_title(f'n={packet_features.shape[0]}')
+    ax.set_title(f'Число кластеров: {packet_features.shape[0]}' if ru_lang else f'n={packet_features.shape[0]}')
     if limit_packet_scale:
         ax.set_xlim(-1, 1)
     ax.grid(True)
-    ax.set_xlabel('packet size / 1500')
-    ax.set_ylabel('log10(inter-packet time, µs)')
+    ax.set_xlabel('размер пакета, байт / 1500' if ru_lang else 'packet size, bytes / 1500')
+    ax.set_ylabel('log10(межпакетный интервал, µs)' if ru_lang else 'log10(inter-packet time, µs)')
     if save_to:
-        plt.savefig(save_to)
+        plt.savefig(save_to, dpi=300)
 
 
 def packets_per_flow(flows):
     non_packet_mask = ~np.isnan(flows)
     packets_per_flow = non_packet_mask.sum(1) / 2
     return packets_per_flow
-
-
-def flows_to_packets(flows):
-    return flows[~np.isnan(flows)].reshape(-1, 2)
 
 
 def handle_estimation_exceptions(func):

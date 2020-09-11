@@ -9,7 +9,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
-from pretraining.evaluate_generated import flows_to_packets
 from raw_packets_nfplugin import raw_packets_matrix as RMI
 from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
 
@@ -89,15 +88,16 @@ class Featurizer:
             packets = flows_to_packets(subflow)
             packets_from = packets[packets[:, 0] > 0, 0]
             packets_to = packets[packets[:, 0] < 0, 0] * -1
-            try:
-                from_stats = calc_parameter_stats(packets_from, FEATURE_PREFIX.client, 'packet')
-            except ValueError:
-                from_stats = {}
-            try:
-                to_stats = calc_parameter_stats(packets_to, FEATURE_PREFIX.server, 'packet')
-            except ValueError:
-                to_stats = {}
-            return dict(**from_stats, **to_stats)
+            stats = {}
+            for direction, packets in zip(
+                    (FEATURE_PREFIX.server, FEATURE_PREFIX.client),
+                    (packets_from, packets_to)
+            ):
+                try:
+                    stats.update(calc_parameter_stats(packets, direction, 'packet'))
+                except ValueError:
+                    continue
+            return stats
 
         if any(column in CONTINUOUS_NAMES for column in data.columns):
             logger.warning('packet stats has been found in dataframe, skipping')
@@ -276,3 +276,7 @@ def generate_raw_feature_names(flow_size, base_features: Tuple[str] = ('packet',
     return [f'raw_{feature}{index}'
             for index in range(flow_size)
             for feature in base_features]
+
+
+def flows_to_packets(flows):
+    return flows[~np.isnan(flows)].reshape(-1, 2)

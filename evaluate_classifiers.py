@@ -7,7 +7,7 @@ from classifiers import read_classifier_settings, initialize_classifiers
 from datasets import read_dataset
 from feature_processing import Featurizer
 from report import Reporter
-from settings import DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, BASE_DIR
+from settings import DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def main():
         raw_feature_num=args.raw,
         consider_j3a=False,
         consider_tcp_flags=False,
-        consider_raw_feature_iat=False
+        consider_raw_feature_iat=True
     )
     if args.continuous:
         df_train = featurizer.calc_packets_stats_from_raw(df_train)

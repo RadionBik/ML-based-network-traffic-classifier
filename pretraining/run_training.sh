@@ -20,6 +20,6 @@ PYTHONPATH=.. python run_packet_modeling.py \
 --warmup_steps=200 \
 --learning_rate=0.001 \
 --save_total_limit=10 \
---train_with_targets \
---file_patterns_to_exclude=mawi_iot_home
+--file_patterns_to_exclude=mawi_iot_home \
+--train_with_targets
 #--model_name_or_path=/media/raid_store/pretrained_traffic/gpt2_model_4epochs_classes_home_iot \

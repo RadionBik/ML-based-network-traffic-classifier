@@ -72,11 +72,11 @@ def _filter_non_iot_dump(source_pcap):
 
 
 def main():
-    dump_root_dir = pathlib.Path.home() / 'Applications/traffic_dumps'
+    dump_root_dir = pathlib.Path('/media/raid_store/pretrained_traffic')
     merged_pcap = dump_root_dir / 'total.pcap'
     # merge all .pcap files from https://iotanalytics.unsw.edu.au/iottraces
-    pcaps = pathlib.Path(dump_root_dir / 'downloaded').glob('*.pcap')
-    # _merge_pcaps(pcaps, merged_pcap)
+    pcaps = pathlib.Path(dump_root_dir / 'iot_downloads').glob('*.pcap')
+    _merge_pcaps(pcaps, merged_pcap)
     _split_by_devices(merged_pcap)
     _filter_non_iot_dump(dump_root_dir / 'home.pcap')
 
