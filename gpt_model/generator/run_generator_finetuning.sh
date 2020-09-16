@@ -5,9 +5,9 @@ PYTHONPATH=../.. python train_generator.py \
 --finetune_on_class=Telegram \
 --output_dir=/media/raid_store/pretrained_traffic/gpt2_model_telegram \
 --do_train \
---train_data_file=../../datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv \
+--train_data_file=../../datasets/train_4c93174d7808b1487aa3288084365d76_no_mawi_unswnb_iscxvpn.csv \
 --do_eval \
---eval_data_file=../../datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv \
+--eval_data_file=../../datasets/test_4c93174d7808b1487aa3288084365d76_no_mawi_unswnb_iscxvpn.csv \
 --overwrite_output_dir \
 --per_device_train_batch_size=128 \
 --per_device_eval_batch_size=224 \

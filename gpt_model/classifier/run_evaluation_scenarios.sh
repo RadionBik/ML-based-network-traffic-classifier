@@ -3,8 +3,8 @@
 export PYTHONPATH=../..
 export PRETRAINED_MODEL_PATH=/media/raid_store/pretrained_traffic/gpt2_model_4epochs_classes_external
 
-export TRAIN_DATASET=../../datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv
-export TEST_DATASET=../../datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv
+export TRAIN_DATASET=../../datasets/train_4c93174d7808b1487aa3288084365d76_no_mawi_unswnb_iscxvpn.csv
+export TEST_DATASET=../../datasets/test_4c93174d7808b1487aa3288084365d76_no_mawi_unswnb_iscxvpn.csv
 
 
 python train_classifier.py \

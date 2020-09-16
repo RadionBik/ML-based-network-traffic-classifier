@@ -158,7 +158,7 @@ def main():
 
     suffix = get_hash(tr_val_df)
     save_dataset(tr_val_df, save_to=DATASET_DIR / f'train_{suffix}_no_{pattern_name}.csv')
-    save_dataset(test_df, save_to=DATASET_DIR / f'test_{suffix}_{pattern_name}.csv')
+    save_dataset(test_df, save_to=DATASET_DIR / f'test_{suffix}_no_{pattern_name}.csv')
 
 
 if __name__ == '__main__':
