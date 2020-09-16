@@ -1,12 +1,12 @@
 import logging
 import pathlib
-
-import pandas as pd
 from typing import Iterable, Optional
 
-from gpt_model.data_preparation.preprocess_target_pcaps import IOT_DEVICES
+import pandas as pd
+
 from flow_parsing.utils import get_hash, read_dataset, check_filename_in_patterns, save_dataset
-from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, BASE_DIR, FilePatterns
+from gpt_model.data_preparation.preprocess_target_pcaps import IOT_DEVICES
+from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, FilePatterns, DATASET_DIR
 
 """ task-specific module, provided for the sake of reproducibility 
     formats labels from outputs of nDPI and in case of IoT traffic, assigns labels from filenames
@@ -143,11 +143,11 @@ def prepare_classification_data(csv_dir, remove_garbage=True, filename_patterns_
 def main():
     pattern_name = 'mawi_unswnb_iscxvpn'
     excluded_patterns = getattr(FilePatterns, pattern_name)
-    train_df = prepare_classification_data('/media/raid_store/pretrained_traffic/train_csv',
+    train_df = prepare_classification_data(DATASET_DIR / 'pretraining/train_csv',
                                            filename_patterns_to_exclude=excluded_patterns)
-    eval_df = prepare_classification_data('/media/raid_store/pretrained_traffic/val_csv',
+    eval_df = prepare_classification_data(DATASET_DIR / 'pretraining/val_csv',
                                           filename_patterns_to_exclude=excluded_patterns)
-    test_df = prepare_classification_data('/media/raid_store/pretrained_traffic/test_csv',
+    test_df = prepare_classification_data(DATASET_DIR / 'pretraining/test_csv',
                                           filename_patterns_to_exclude=excluded_patterns)
     tr_val_df = pd.concat([train_df, eval_df], ignore_index=True)
     tr_val_df = delete_duplicating_flows(tr_val_df)
@@ -157,8 +157,8 @@ def main():
     test_df, _ = prune_targets(test_df, underrepresented_protos=underrepresented_protos)
 
     suffix = get_hash(tr_val_df)
-    save_dataset(tr_val_df, save_to=BASE_DIR / f'datasets/train_{suffix}_no_{pattern_name}.csv')
-    save_dataset(test_df, save_to=BASE_DIR / f'datasets/test_{suffix}_{pattern_name}.csv')
+    save_dataset(tr_val_df, save_to=DATASET_DIR / f'train_{suffix}_no_{pattern_name}.csv')
+    save_dataset(test_df, save_to=DATASET_DIR / f'test_{suffix}_{pattern_name}.csv')
 
 
 if __name__ == '__main__':

@@ -20,16 +20,13 @@ def main():
     parser.add_argument(
         '--train_dataset',
         help='path to preprocessed .csv dataset',
-        default=(BASE_DIR / 'datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv').as_posix()
     )
     parser.add_argument(
         '--test_dataset',
         help='path to preprocessed .csv dataset',
-        default=(BASE_DIR / 'datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv').as_posix()
     )
     parser.add_argument(
         '--pretrained_path',
-        default='/media/raid_store/pretrained_traffic/gpt2_model_2epochs_classes'
     )
     parser.add_argument(
         '--freeze_pretrained_model',
@@ -64,8 +61,8 @@ def main():
         default=False
     )
     parser.add_argument(
-        '--disable_neptune',
-        dest='disable_neptune',
+        '--log_neptune',
+        dest='log_neptune',
         action='store_true',
         default=False
     )
@@ -138,7 +135,7 @@ def main():
     )
 
     logger = NeptuneLogger(
-        offline_mode=args.disable_neptune,
+        offline_mode=not args.log_neptune,
         close_after_fit=False,
         project_name=NEPTUNE_PROJECT,
         experiment_name=args.neptune_experiment_name,

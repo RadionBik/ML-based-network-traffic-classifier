@@ -1,13 +1,13 @@
 #!/bin/bash
 
-PYTHONPATH=.. python run_packet_modeling.py \
+PYTHONPATH=../.. python train_generator.py \
 --model_name_or_path=/media/raid_store/pretrained_traffic/gpt2_model_2epochs_classes \
 --finetune_on_class=Telegram \
 --output_dir=/media/raid_store/pretrained_traffic/gpt2_model_telegram \
 --do_train \
---train_data_file=~/Apps/PyCharmServer/classifier/datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv \
+--train_data_file=../../datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv \
 --do_eval \
---eval_data_file=~/PyCharmServer/classifier/datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv \
+--eval_data_file=../../datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv \
 --overwrite_output_dir \
 --per_device_train_batch_size=128 \
 --per_device_eval_batch_size=224 \

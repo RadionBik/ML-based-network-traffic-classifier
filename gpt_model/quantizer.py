@@ -189,8 +189,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-s", "--source",
-        help="source folder with .csv files",
-        default='/media/raid_store/pretrained_traffic/raw_csv_quantizer'
+        help="source folder with .csv files. the recommended way is to create a folder with all the training data, that"
+             "was merged and shuffled beforehand (e.g. via pandas)"
     )
     args = parser.parse_args()
 

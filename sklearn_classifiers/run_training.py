@@ -22,12 +22,10 @@ def _parse_args():
     parser.add_argument(
         '--train_dataset',
         help='path to preprocessed .csv dataset',
-        default=BASE_DIR / 'datasets/train_78c109eedb12f4e9a7f91fec6a7621f2.csv'
     )
     parser.add_argument(
         '--test_dataset',
         help='path to preprocessed .csv dataset',
-        default=BASE_DIR / 'datasets/test_78c109eedb12f4e9a7f91fec6a7621f2.csv'
     )
 
     parser.add_argument('--continuous', dest='continuous', action='store_true',

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-PYTHONPATH=.. python run_packet_modeling.py \
+PYTHONPATH=../.. python train_generator.py \
 --config_name=model_config.json \
+--quantizer_path=trained_quantizers/quantizer_2^14_train_shuffled_0 \
 --output_dir=/media/raid_store/pretrained_traffic/gpt2_model_4epochs_classes_external \
 --do_train \
 --train_data_file=/media/raid_store/pretrained_traffic/train_csv \

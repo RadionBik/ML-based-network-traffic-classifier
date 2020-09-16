@@ -36,7 +36,7 @@ from transformers import (
 
 from gpt_model.generator.dataset import PretrainCollator, PretrainDataset, FinetuningDataset, PretrainDatasetWithClasses
 from gpt_model.tokenizer import PacketTokenizer
-from settings import BASE_DIR, FilePatterns
+from settings import FilePatterns
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,13 @@ class ModelArguments:
         metadata={
             "help": "The model checkpoint for weights initialization. "
                     "Leave None if you want to train a model from scratch."
+        },
+    )
+    quantizer_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The quantizer checkpoint for weights initialization. Must be provided when the model"
+                    "is trained from scratch. Not used, when the model is initialized from checkpoint"
         },
     )
     model_type: Optional[str] = field(
@@ -151,6 +158,9 @@ def main():
     if data_args.finetune_on_class and data_args.train_with_targets:
         raise ValueError("Pretraining with flow labels and fine-tuning on the class simultaneously not supported.")
 
+    if not model_args.model_name_or_path and not model_args.quantizer_path:
+        raise ValueError("Either model or quantizer checkpoint path must be specified")
+
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -185,8 +195,7 @@ def main():
     if model_args.model_name_or_path:
         tokenizer = PacketTokenizer.from_pretrained(model_args.model_name_or_path)
     else:
-        tokenizer = PacketTokenizer.from_pretrained(BASE_DIR /
-                                                    'gpt_model/trained_quantizers/quantizer_2^14_train_shuffled_0')
+        tokenizer = PacketTokenizer.from_pretrained(model_args.quantizer_path)
 
     if model_args.model_name_or_path:
         model = GPT2LMHeadModel.from_pretrained(

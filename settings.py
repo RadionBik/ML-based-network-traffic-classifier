@@ -18,6 +18,7 @@ def _read_protocol_mapping() -> dict:
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 TEST_STATIC_DIR = BASE_DIR / 'tests' / 'static'
+DATASET_DIR = BASE_DIR / 'datasets'
 
 PCAP_OUTPUT_DIR = BASE_DIR / 'csv_files'
 REPORT_DIR = BASE_DIR / 'reports'
