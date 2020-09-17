@@ -119,9 +119,9 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         if isinstance(flows, pd.DataFrame):
             flows = flows.values
 
-        if flows.shape[1]//2 != self.max_model_input_sizes:
-            logger.debug(f'input number of features ({flows.shape[1]//2}) does not match '
-                           f'max_model_input_sizes ({self.max_model_input_sizes})')
+        if flows.shape[1] // 2 != self.max_model_input_sizes:
+            logger.debug(f'input number of features ({flows.shape[1] // 2}) does not match '
+                         f'max_model_input_sizes ({self.max_model_input_sizes})')
         clusters = self.packet_quantizer.transform(flows)
 
         if add_special_tokens:

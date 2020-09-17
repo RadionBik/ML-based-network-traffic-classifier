@@ -8,8 +8,9 @@ from flow_parsing.utils import get_hash, read_dataset, check_filename_in_pattern
 from gpt_model.data_preparation.preprocess_target_pcaps import IOT_DEVICES
 from settings import TARGET_CLASS_COLUMN, LOWER_BOUND_CLASS_OCCURRENCE, FilePatterns, DATASET_DIR
 
-""" task-specific module, provided for the sake of reproducibility 
-    formats labels from outputs of nDPI and in case of IoT traffic, assigns labels from filenames
+"""
+task-specific module, provided for the sake of reproducibility
+formats labels from outputs of nDPI and in case of IoT traffic, assigns labels from filenames
 """
 
 logger = logging.getLogger(__name__)

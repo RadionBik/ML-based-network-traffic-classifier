@@ -15,4 +15,3 @@ def test_scale_invariance():
     gen = np.random.normal(size=1000) - .1
     check(get_ks_stat)
     check(get_wasserstein_distance_pdf)
-

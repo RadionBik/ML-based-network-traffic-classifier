@@ -45,14 +45,14 @@ def test_raw_model_features(raw_matrix):
     packet_features = features._get_packet_features(raw_matrix)
     model_features = np.vstack([iat_features, packet_features]).T
     expected = np.array([[0, -13],
-                        [1, 54],
-                        [1, 345],
-                        [1, -43],
-                        [1, -44],
-                        [1, 990],
-                        [1, 1000],
-                        [1, 23],
-                        [1, 555],
-                        [1, -1400],
-                        ])
+                         [1, 54],
+                         [1, 345],
+                         [1, -43],
+                         [1, -44],
+                         [1, 990],
+                         [1, 1000],
+                         [1, 23],
+                         [1, 555],
+                         [1, -1400],
+                         ])
     assert (model_features == expected).all()

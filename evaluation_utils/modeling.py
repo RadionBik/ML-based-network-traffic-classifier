@@ -179,4 +179,3 @@ def evaluate_generated_traffic(src_flows: np.ndarray, gen_flows: np.ndarray) -> 
 
 def save_metrics(metrics: dict, save_to):
     pd.DataFrame(metrics).T.to_csv(save_to)
-
