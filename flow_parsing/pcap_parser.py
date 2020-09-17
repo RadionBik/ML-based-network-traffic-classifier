@@ -149,10 +149,10 @@ def main():
     parser.add_argument('--no-derivative', dest='derivative', action='store_false')
     parser.set_defaults(derivative=True)
 
-    parser.add_argument('--online-mode', dest='online_mode', action='store_true',
-                        help="when enabled, active flow expiration timeout is decreased to the one defined in settings,"
-                             "to suite online monitoring, alternatively (default), active timeout is set to be large "
-                             "enough to avoid flow fragmentation due to the timeout",
+    parser.add_argument('--online_mode', dest='online_mode', action='store_true',
+                        help="when enabled, active flow expiration timeout is decreased to the one defined in settings."
+                             "In offline mode, active timeout is set to be large "
+                             "enough to avoid flow fragmentation",
                         default=False)
 
     args = parser.parse_args()

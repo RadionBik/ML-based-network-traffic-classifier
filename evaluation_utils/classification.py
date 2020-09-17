@@ -1,3 +1,4 @@
+import pathlib
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -17,7 +18,7 @@ class Reporter:
         self.predicted = predicted
         self.target_classes = target_classes if len(target_classes) > 0 else list(range(max(true) + 1))
         self.classifier_name = classifier_name
-        self.save_dir = report_dir
+        self.save_dir = pathlib.Path(report_dir)
         self.save_dir.mkdir(exist_ok=True)
 
     def scores(self):

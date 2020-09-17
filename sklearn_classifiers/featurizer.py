@@ -134,7 +134,6 @@ class Featurizer:
         return len(self.target_encoder.classes_)
 
     def calc_packets_stats_from_raw(self, data: pd.DataFrame):
-
         def calc_flow_packet_stats(flow):
             subflow = flow[:2 * DEFAULT_PACKET_LIMIT_PER_FLOW]
             packets = flows_to_packets(subflow)
@@ -151,8 +150,8 @@ class Featurizer:
                     continue
             return stats
 
-        if any(column in CONTINUOUS_NAMES for column in data.columns):
-            logger.warning('packet stats has been found in dataframe, skipping')
+        if any(FEATURE_PREFIX.server + feature in data.columns for feature in CONTINUOUS_NAMES):
+            logger.warning('packet stats has been found in dataframe, skipping calculation')
             return data
         raw = data.filter(regex='raw_')
         pandarallel.initialize()

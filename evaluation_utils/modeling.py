@@ -16,8 +16,8 @@ def flows_to_packets(flows):
 
 
 def convert_ipt_to_iat(flows):
-    """ converts IPT (timing between 2 any packets) to IAT
-        (timing between 2 consecutive packets within 1 direction) """
+    """ converts inter-packet time (IPT - timing between 2 any packets) to
+        inter-arrival time (IAT - timing between 2 consecutive packets within 1 direction) """
 
     def ipt_to_iat(flow):
         """
@@ -62,8 +62,7 @@ def plot_packets(packet_features, limit_packet_scale=False, save_to=None, ru_lan
 
 def packets_per_flow(flows):
     non_packet_mask = ~np.isnan(flows)
-    packets_per_flow = non_packet_mask.sum(1) / 2
-    return packets_per_flow
+    return non_packet_mask.sum(1) / 2
 
 
 def handle_estimation_exceptions(func):
