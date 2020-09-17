@@ -4,61 +4,62 @@ UPDATE 18/03/2019: Refactored in OOP-style, more flexibility and features!
 
 UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 
+UPDATE 17/09/2020: Added pytorch classifiers, including transformer-based one
+
 ## Key features
 
-* Configuration of ML algorithms and their parameter search space via the `classifiers_config.yaml` file.
+* Configurable feature extraction from network flows via `NFStream`.
 
-* Automatic feature extraction and processing for ML algorithms.
+* Possibility to test arbitrary sklearn algorithms (e.g. SVM, Random Forest, 
+etc.) and configure their parameter search space via `.yaml` configs.
 
-* Support of various ML algorithms: Logistic regression, SVM, Decision Tree, Gradient Boosting, Random Forest, Multilayer Perceptron. 
+* Basic examples of pytorch classifiers and new generative transformer
+framework that can be used for building of traffic generators and 
+classifiers.
 
+* Option for experiment tracking with Neptune.
 
 ## Project structure
 
-* `flow_parser.py` converts a PCAP-file into a .csv file with features and labels (obtained from `NFStream`). 
-The distinguishing feature is exporting of raw packet-features (e.g. 
-packet/payload sizes, timestamps, various packet-fields) in a numpy array,
-allowing such features as percentiles that are tricky to calculate in 
-online mode. 
+* `flow_parsing` contains scripts for converting a PCAP-file into a `.csv`
+ file with features and labels (obtained from `NFStream`). It can be
+ used for exporting raw per-flow packet-features (e.g. packet/payload 
+ sizes, timestamps, various packet-fields) in a numpy array, as well as
+ derivative statistics, such as feature percentiles, etc.
 
-* `feature_processing.py` a wrapper of sklearn's transformers to 
-ease selecting of used features.
+* `evaluation_utils` contains utilities for evaluation of traffic 
+classifiers and generators.
 
-* `datasets` contains utils to load/merge parsed `.csv` files, reassigns target classes (specific for my task).
+* `sklearn_classifiers` contains wrapper for sklearn-like classifiers 
+and example pipeline script. Used models and their parameters are specified
+via the `.yaml` configuration file. Check and modify `utils.py:REGISTERED_CLASSES` 
+to support the needed models.
 
-* `report.py` contains a class for evaluation of the classifiers, plotting confusion matrices and scores. 
+* `nn_classifers` includes base class for pytorch-lightning classifier and
+some basic derivatives.
 
-* `classifiers.py` contain the wrapper class ClassifierHolder that stores a model, its search space. 
-Extending with other algorithms is possible by updating the REGISTRED_CLASSES variable.
+* `gpt_model` has all the code required for building your own 
+transformer-based traffic generator and classifier, along with a link to 
+model checkpoints. See the package for more info.
 
-* `evaluate_classifiers.py` contains an example pipeline when a dataset is ready.
+## Usage example for sklearn-based classifiers
 
-* `pcap_files/` includes an example `.pcap` that is analyzed by the program modules by default. 
-Also contains task-specific pre-processing script.
+1. A feature file has to be prepared before running model training, so 
+make sure to create a `.csv` dataset by running, for example:
+ 
+    ```PYTHONPATH=. python flow_parsing/pcap_parser.py -p flow_parsing/static/example.pcap --online_mode``` 
 
-* `csv_files/` stores outputs of `flow_parser.py`, includes task-specific script.
+2. OPTIONAL. Postprocess parsed `.csv` as needed, e.g. split into train-test,
+reassign target columns.
 
-## Module interfaces
-### flow_parser.py
+3. Create own version of `config.yaml` to experiment with and
+test classifiers:
 
-`flow_parser.py -p [--pcapfiles ...] -o [--output]`
-* **-p --pcapfiles** - one or more PCAP-files to process
-* **-o --output** - .csv file target to store the parsing results 
-
-### evaluate_classifiers.py
-
-`evaluate_classifiers.py -c [--config]`
-* **-c --config** - the configuration `.yaml` to use, defaults to `classifiers_config.yaml`
-* **--dataset** -- path to preprocessed `.csv` dataset (see the `dataset` package) 
-
-## Usage example
-
-1. A feature file has to be prepared before running model training, so make sure a `.csv` is already present 
-by running `flow_parser.py`. 
-
-2. OPTIONAL. Run `python dataset/formatter.py`. It creates a target column specified in `settings:TARGET_CLASS_COLUMN`,
- change the one if this step is omitted.
-
-3. Make a copy of the `classifiers_config.yaml` to experiment with and
-test classifiers via `evaluate_classifiers.py`
+    ```
+   PYTHONPATH=. python sklearn_classifiers/run_training.py 
+        --train_dataset csv_files/example_20packets.csv 
+        --target_column ndpi_category 
+        --continuous 
+        --raw 0
+   ```
 
