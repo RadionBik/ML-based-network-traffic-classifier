@@ -1,22 +1,28 @@
 import pathlib
 
+import nfstream
 import pandas as pd
 import sh
-from nfstream.plugin import bidirectional_packets, src2dst_packets, dst2src_packets
 
-from flow_parsing import init_streamer, parse_pcap_to_csv
+import settings
+from flow_parsing import parse_pcap_to_csv
 
 
 def parse_flow_sizes(pcap_folder, target_folder):
-    plugins = [bidirectional_packets(), src2dst_packets(), dst2src_packets()]
 
     for pcap_file in pcap_folder.glob('*.pcap'):
         print(f'parsing {pcap_file}')
         dest_file = target_folder / (pcap_file.stem + '.csv')
 
-        streamer = init_streamer(pcap_file.as_posix(), plugins=plugins)
+        streamer = nfstream.NFStreamer(
+            source=pcap_file.as_posix(),
+            statistical_analysis=True,
+            idle_timeout=settings.IDLE_TIMEOUT,
+            active_timeout=settings.ACTIVE_TIMEOUT_ONLINE,
+            accounting_mode=1,   # IP size,
+        )
         print(f'saving to {dest_file}')
-        streamer.to_csv(path=dest_file, sep=',')
+        streamer.to_csv(path=dest_file)
 
 
 def parse_raw_features_from_pcaps(pcap_folder, target_folder):

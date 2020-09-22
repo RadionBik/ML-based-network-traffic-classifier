@@ -25,7 +25,7 @@ dependencies:
   - nodejs
   - pip:
     - pytorch-lightning==0.8.5
-    - nfstream==5.2.0
+    - nfstream==6.1.3
     - sh==1.13.1
     - pandarallel==1.4.8
     - transformers==3.0.2

@@ -26,6 +26,13 @@ def raw_dataset(raw_dataset_folder):
 
 
 @pytest.fixture
+def raw_dataset_with_targets(raw_dataset_folder):
+    df = pd.read_csv(raw_dataset_folder / 'example_raw_20packets.csv', na_filter=False)
+    df.filter(regex='raw').astype(np.float64, copy=False)
+    return df
+
+
+@pytest.fixture
 def classif_config():
     return {'SVM': {'type': 'OneVsOneClassifier',
                     'params': {'estimator': {'type': 'LinearSVC',

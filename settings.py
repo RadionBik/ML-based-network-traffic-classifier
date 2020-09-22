@@ -37,7 +37,7 @@ TARGET_CLASS_COLUMN = 'target_class'
 IDLE_TIMEOUT = 60
 # active timeouts are set similarly, (Cisco's JOY tool has 30 sec)
 ACTIVE_TIMEOUT_ONLINE = 60
-ACTIVE_TIMEOUT_OFFLINE = 10e5
+ACTIVE_TIMEOUT_OFFLINE = 10**6
 
 NEPTUNE_PROJECT = 'radion/traffic-classifier'
 

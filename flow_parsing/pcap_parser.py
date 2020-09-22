@@ -1,30 +1,36 @@
 import argparse
 import csv
 import logging
-
-import pandas as pd
-import nfstream
 from typing import Optional
+
+import nfstream
+import pandas as pd
 
 import settings
 from flow_parsing.features import calc_raw_features, calc_stat_features
-from flow_parsing.raw_packets_nfplugin import raw_packets_matrix
+from flow_parsing.aux_raw_features_plugin import AuxRawFeatures
 
 logger = logging.getLogger('flow_parser')
 
 
-def init_streamer(source, plugins: list, online_mode=False, provide_labels=True):
+def init_streamer(source,
+                  derivative_features: bool,
+                  online_mode: bool = False,
+                  packet_limit: int = settings.DEFAULT_PACKET_LIMIT_PER_FLOW):
     # since we decide and set routing policy upon first occurrence of a flow we don't care about its re-export
     active_timeout = settings.ACTIVE_TIMEOUT_ONLINE if online_mode else settings.ACTIVE_TIMEOUT_OFFLINE
+    plugins = [AuxRawFeatures(packet_limit=packet_limit)] if derivative_features else []
     logger.info(f'mode set to {"online" if online_mode else "offline"}')
 
-    return nfstream.NFStreamer(source=source,
-                               statistics=False,
-                               idle_timeout=settings.IDLE_TIMEOUT,
-                               active_timeout=active_timeout,
-                               plugins=plugins,
-                               enable_guess=provide_labels,
-                               dissect=provide_labels)
+    return nfstream.NFStreamer(
+        source=source,
+        statistical_analysis=False,
+        idle_timeout=settings.IDLE_TIMEOUT,
+        active_timeout=active_timeout,
+        splt_analysis=packet_limit,
+        accounting_mode=1,   # IP size,
+        udps=plugins,
+    )
 
 
 def get_ip_protocol_by_int(proto: int) -> str:
@@ -41,35 +47,34 @@ def flow_processor(source,
                    provide_labels=True,
                    online_mode=True
                    ) -> dict:
-
     def _make_flow_id():
         return f'{get_ip_protocol_by_int(entry.protocol)} ' \
                f'{entry.src_ip}:{entry.src_port} ' \
                f'{entry.dst_ip}:{entry.dst_port}'
 
-    packet_limit = raw_features if raw_features else settings.DEFAULT_PACKET_LIMIT_PER_FLOW
-
-    for flow_number, entry in enumerate(init_streamer(source,
-                                                      plugins=[raw_packets_matrix(volatile=False,
-                                                                                  packet_limit=packet_limit)],
-                                                      provide_labels=provide_labels,
-                                                      online_mode=online_mode)):
+    streamer = init_streamer(
+        source,
+        derivative_features,
+        online_mode=online_mode,
+        packet_limit=raw_features if raw_features is not None else settings.DEFAULT_PACKET_LIMIT_PER_FLOW
+    )
+    for flow_number, entry in enumerate(streamer):
         flow_ids = {
             'flow_id': _make_flow_id(),
             'ip_proto': get_ip_protocol_by_int(entry.protocol)}
 
         ndpi_features = {
             'ndpi_app': entry.application_name,
-            'ndpi_category': entry.category_name,
-            'ndpi_client_info': entry.client_info,
-            'ndpi_server_info': entry.server_info,
-            'ndpi_j3ac': entry.j3a_client,
-            'ndpi_j3as': entry.j3a_server,
+            'ndpi_category': entry.application_category_name,
+            'ndpi_client_info': entry.user_agent,
+            'ndpi_server_info': entry.requested_server_name,
+            'ndpi_j3ac': entry.client_fingerprint,
+            'ndpi_j3as': entry.server_fingerprint,
         } if provide_labels else {}
 
-        flow_features = calc_stat_features(entry.raw_packets_matrix) if derivative_features else {}
+        raw_packets = calc_raw_features(entry) if raw_features else {}
 
-        raw_packets = calc_raw_features(entry.raw_packets_matrix, packet_limit) if raw_features else {}
+        flow_features = calc_stat_features(entry) if derivative_features else {}
 
         if flow_number > 0 == flow_number % 5000:
             logger.info(f'processed {flow_number} flows...')
@@ -82,7 +87,6 @@ def parse_pcap_to_csv(pcap_file_path,
                       raw_features: Optional[int] = None,
                       provide_labels=True,
                       online_mode=True):
-
     logger.info(f'started parsing file {pcap_file_path}')
     logger.info(f'saving to {target_csv_path}')
     with open(target_csv_path, 'w', newline='') as f:
