@@ -27,4 +27,5 @@ jobs:
         $CONDA/bin/flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
+        export PYTHONPATH=/home/runner/work/ML-based-network-traffic-classifier/ML-based-network-traffic-classifier
         $CONDA/bin/pytest
