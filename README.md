@@ -14,15 +14,15 @@ UPDATE 17/09/2020: Added pytorch classifiers, including transformer-based one
 etc.) and configure their parameter search space via `.yaml` configs.
 
 * Basic examples of pytorch classifiers and new generative transformer
-framework that can be used for building of traffic generators and 
+framework that can be used for building traffic generators and 
 classifiers.
 
 * Option for experiment tracking with Neptune.
 
 ## Project structure
 
-* `flow_parsing` contains scripts for converting a PCAP-file into a `.csv`
- file with features and labels (obtained from `NFStream`). It can be
+* `flow_parsing` contains scripts for parsing flow features and labels
+from `.pcap` into `.csv` via `NFStream`. It can be
  used for exporting raw per-flow packet-features (e.g. packet/payload 
  sizes, timestamps, various packet-fields) in a numpy array, as well as
  derivative statistics, such as feature percentiles, etc.
