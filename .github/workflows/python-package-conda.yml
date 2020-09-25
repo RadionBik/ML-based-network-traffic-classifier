@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
-        $CONDA/bin/conda env update --file requirements.yaml
+        $CONDA/bin/conda env update --file requirements.yaml -n base
     - name: Lint with flake8
       run: |
         $CONDA/bin/conda install flake8
@@ -27,5 +27,5 @@ jobs:
         $CONDA/bin/flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        conda install pytest
+        export PYTHONPATH=/home/runner/work/ML-based-network-traffic-classifier/ML-based-network-traffic-classifier
         $CONDA/bin/pytest
