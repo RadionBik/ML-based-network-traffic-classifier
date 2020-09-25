@@ -27,5 +27,4 @@ jobs:
         $CONDA/bin/flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        conda install pytest
         $CONDA/bin/pytest
