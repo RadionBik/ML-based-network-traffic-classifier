@@ -4,18 +4,32 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import feature_processing
+from flow_parsing import features
 import settings
 
 
 @pytest.fixture
 def dataset():
-    return pd.read_csv(settings.TEST_STATIC_DIR / 'example_20packets.csv', na_filter='')
+    return pd.read_csv(settings.TEST_STATIC_DIR / 'example_20packets.csv', na_filter=False)
 
 
 @pytest.fixture
-def raw_dataset():
-    return pd.read_csv(settings.TEST_STATIC_DIR / 'raw_example_20packets.csv', na_filter='')
+def raw_dataset_folder():
+    return settings.TEST_STATIC_DIR / 'raw_csv'
+
+
+@pytest.fixture
+def raw_dataset(raw_dataset_folder):
+    return pd.read_csv(raw_dataset_folder / 'example_raw_20packets.csv', na_filter=False).\
+        filter(regex='raw').\
+        astype(np.float64)
+
+
+@pytest.fixture
+def raw_dataset_with_targets(raw_dataset_folder):
+    df = pd.read_csv(raw_dataset_folder / 'example_raw_20packets.csv', na_filter=False)
+    df.filter(regex='raw').astype(np.float64, copy=False)
+    return df
 
 
 @pytest.fixture
@@ -37,9 +51,9 @@ def classif_config():
 def raw_matrix():
     size = 10
     raw_feature_matrix = np.zeros((size, 7))
-    raw_feature_matrix[:, feature_processing.RMI.TIMESTAMP] = np.array(range(12312, size + 12312))
-    raw_feature_matrix[:, feature_processing.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
-    raw_feature_matrix[:, feature_processing.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
+    raw_feature_matrix[:, features.RMI.TIMESTAMP] = np.array(range(12312, size + 12312))
+    raw_feature_matrix[:, features.RMI.IP_LEN] = np.array([13, 54, 345, 43, 44, 990, 1000, 23, 555, 1400])
+    raw_feature_matrix[:, features.RMI.IS_CLIENT] = np.array([0, 1, 1, 0, 0, 1, 1, 1, 1, 0])
     return raw_feature_matrix
 
 
@@ -48,3 +62,13 @@ def quantized_packets():
     with open(settings.TEST_STATIC_DIR / 'quantized_pkts.json', 'r') as js:
         pkts = json.load(js)
     return np.array(pkts).reshape(-1, 20)
+
+
+@pytest.fixture
+def quantizer_checkpoint():
+    return settings.TEST_STATIC_DIR / 'quantizer_checkpoint'
+
+
+@pytest.fixture
+def pcap_example_path():
+    return (settings.BASE_DIR / 'flow_parsing/static/example.pcap').as_posix()

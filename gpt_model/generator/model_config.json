@@ -1,0 +1,16 @@
+{"vocab_size": 9906,
+"n_positions": 128,
+"n_ctx": 128,
+"n_embd": 512,
+"n_layer": 6,
+"n_head": 8,
+"activation_function": "gelu_new",
+"resid_pdrop": 0.1,
+"embd_pdrop": 0.1,
+"attn_pdrop": 0.1,
+"layer_norm_epsilon": 1e-5,
+"initializer_range": 0.02,
+"bos_token_id": -10,
+"eos_token_id": -10,
+  "pad_token_id": -10
+}
