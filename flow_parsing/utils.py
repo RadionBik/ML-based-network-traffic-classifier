@@ -28,9 +28,11 @@ def check_filename_in_patterns(file, patterns):
     return False
 
 
+def get_df_hash(df):
+    return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
+
+
 def get_hash(df):
-    def _hash_df(df):
-        return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
 
     def _get_current_commit_hash():
         """ get commit hash at HEAD """
@@ -41,7 +43,7 @@ def get_hash(df):
     try:
         df_hash = _get_current_commit_hash()
     except Exception:
-        df_hash = _hash_df(df)
+        df_hash = get_df_hash(df)
     return df_hash
 
 

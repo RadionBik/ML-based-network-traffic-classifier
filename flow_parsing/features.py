@@ -7,13 +7,24 @@ from nfstream.flow import NFlow
 
 logger = logging.getLogger(__name__)
 
-# These are non-complete subsets of handcrafted features
-CONTINUOUS_NAMES = (
-    'bulk0', 'bulk1', 'packet0', 'packet1', 'tcp_window_avg',
-    'bulk_max', 'bulk_min', 'bulk_avg', 'bulk_median', 'bulk_25q', 'bulk_75q', 'bulk_bytes', 'bulk_number',
-    'packet_max', 'packet_min', 'packet_avg', 'packet_median', 'packet_25q', 'packet_75q', 'packet_bytes',
-    'packet_number',
-)
+
+FEATURE_FUNCTIONS = {
+    '0': lambda feature_slice: _safe_vector_getter(feature_slice, 0),
+    '1': lambda feature_slice: _safe_vector_getter(feature_slice, 1),
+    '_max': np.max,
+    '_min': np.min,
+    '_avg': np.mean,
+    '_median': np.median,
+    '_25q': lambda feature_slice: np.percentile(feature_slice, 25),
+    '_75q': lambda feature_slice: np.percentile(feature_slice, 75),
+    '_sum': np.sum,
+    # counting non-empty bulks (packets with payload)
+    '_number': lambda feature_slice: feature_slice[feature_slice > 0].shape[0]
+}
+
+# These are not complete subsets of handcrafted features
+CONTINUOUS_NAMES = tuple(base + feature for feature in FEATURE_FUNCTIONS.keys() for base in ['bulk', 'packet'])
+CONTINUOUS_NAMES += ('tcp_window_avg', )
 
 CATEGORICAL_NAMES = (
     'found_tcp_flags',
@@ -29,7 +40,7 @@ class FEATURE_PREFIX:
 
 @functools.lru_cache(maxsize=2)
 def create_empty_features(prefix: str, feature_list=FEATURE_NAMES) -> dict:
-    return {f'{prefix}{feature}': 0. for feature in feature_list}
+    return {prefix + feature: 0. for feature in feature_list}
 
 
 def _safe_vector_getter(vector, indexer) -> Union[int, float]:
@@ -40,19 +51,7 @@ def _safe_vector_getter(vector, indexer) -> Union[int, float]:
 
 
 def calc_parameter_stats(feature_slice, prefix, feature_name) -> dict:
-    return {
-        prefix + feature_name + '0': _safe_vector_getter(feature_slice, 0),
-        prefix + feature_name + '1': _safe_vector_getter(feature_slice, 1),
-        prefix + feature_name + '_max': np.max(feature_slice),
-        prefix + feature_name + '_min': np.min(feature_slice),
-        prefix + feature_name + '_avg': np.mean(feature_slice),
-        prefix + feature_name + '_median': np.median(feature_slice),
-        prefix + feature_name + '_25q': np.percentile(feature_slice, 25),
-        prefix + feature_name + '_75q': np.percentile(feature_slice, 75),
-        prefix + feature_name + '_bytes': np.sum(feature_slice),
-        # counting non-empty bulks (packets with payload)
-        prefix + feature_name + '_number': feature_slice[feature_slice > 0].shape[0]
-    }
+    return {prefix + feature_name + feature: func(feature_slice) for feature, func in FEATURE_FUNCTIONS.items()}
 
 
 def inter_packet_times_from_timestamps(timestamps):

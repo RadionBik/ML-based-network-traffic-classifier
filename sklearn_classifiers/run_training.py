@@ -35,23 +35,38 @@ def _parse_args():
         default=TARGET_CLASS_COLUMN
     )
 
-    parser.add_argument('--continuous', dest='continuous', action='store_true',
-                        help="when enabled, continuous feature from dataset are accounted for, "
-                             "e.g. percentiles, sums, etc. of packet size. Defaults to False")
+    parser.add_argument(
+        '--continuous',
+        dest='continuous',
+        action='store_true',
+        help="when enabled, continuous feature from dataset are accounted for, "
+             "e.g. percentiles, sums, etc. of packet size. Defaults to False"
+    )
     parser.set_defaults(continuous=False)
 
-    parser.add_argument('--categorical', dest='categorical', action='store_true',
-                        help="when enabled, categorical feature from dataset are accounted for, "
-                             "e.g. IP protocol. Defaults to False")
+    parser.add_argument(
+        '--categorical',
+        dest='categorical',
+        action='store_true',
+        help="when enabled, categorical feature from dataset are accounted for, "
+             "e.g. IP protocol. Defaults to False"
+    )
     parser.set_defaults(categorical=False)
 
     parser.add_argument(
         "--raw",
         dest='raw',
         type=int,
-        help="when provided, the first N number of raw features are used for classification, "
-             "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW",
+        help="specify the first N packet raw features to use for classification, "
+             "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW,"
+             "set to 0 to use only the derivatives",
         default=DEFAULT_PACKET_LIMIT_PER_FLOW
+    )
+    parser.add_argument(
+        '--use_iat',
+        help='set to use inter-packet time features, as raw features and/or their derivatives',
+        action='store_true',
+        default=False
     )
 
     parser.add_argument('--log-neptune', dest='log_neptune', action='store_true', default=False)
@@ -71,7 +86,7 @@ def main():
     else:
         df_train, df_test = train_test_split(df_train,
                                              stratify=df_train[args.target_column],
-                                             test_size=1/4,
+                                             test_size=1 / 4,
                                              random_state=RANDOM_SEED)
 
     featurizer = Featurizer(
@@ -80,7 +95,7 @@ def main():
         raw_feature_num=args.raw,
         consider_j3a=False,
         consider_tcp_flags=False,
-        consider_raw_feature_iat=True,
+        consider_iat_features=args.use_iat,
         target_column=args.target_column,
     )
     if args.continuous:

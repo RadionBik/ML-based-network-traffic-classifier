@@ -1,5 +1,6 @@
 from typing import Tuple
 import logging
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -9,21 +10,23 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
 
 from flow_parsing.features import (
     FEATURE_PREFIX,
-    FEATURE_NAMES,
+    FEATURE_FUNCTIONS,
     CONTINUOUS_NAMES,
     generate_raw_feature_names,
     calc_parameter_stats
 )
+from flow_parsing.utils import get_df_hash, save_dataset, read_dataset
 from evaluation_utils.modeling import flows_to_packets
 from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
 
 
 logger = logging.getLogger(__name__)
+pandarallel.initialize()
 
 
 class Featurizer:
     """
-    Featurizer processes features from a pandas object by merging results from scalers and one-hot encoders
+    Featurizer processes features from a pandas object by merging results from scalers, one-hot encoders
     and encodes target labels
     """
 
@@ -33,17 +36,19 @@ class Featurizer:
                  consider_tcp_flags=True,
                  consider_j3a=True,
                  raw_feature_num=0,
-                 consider_raw_feature_iat=False,
+                 consider_iat_features=False,
                  target_column=TARGET_CLASS_COLUMN):
 
         self.target_encoder = LabelEncoder()
         self.transformer = None
         self.target_column = target_column
 
-        self.categorical_features = ['ip_proto'] if categorical_features is None else categorical_features
-        self.cont_features = self._get_cont_features() if cont_features is None else cont_features
+        self.consider_iat_features = consider_iat_features
         self.consider_tcp_flags = consider_tcp_flags
         self.consider_j3a = consider_j3a
+
+        self.categorical_features = ['ip_proto'] if categorical_features is None else categorical_features
+        self.cont_features = self._get_cont_features() if cont_features is None else cont_features
 
         if self.consider_j3a:
             self.categorical_features.extend(['ndpi_j3ac', 'ndpi_j3as'])
@@ -54,18 +59,20 @@ class Featurizer:
 
         self.raw_features = generate_raw_feature_names(
             raw_feature_num,
-            base_features=('packet', 'iat') if consider_raw_feature_iat else ('packet',)
+            base_features=('packet', 'iat') if consider_iat_features else ('packet',)
         )
 
-    @staticmethod
-    def _get_cont_features():
+    def _get_cont_features(self):
         # here we expect features to be consistent with flow_parser's
-        base_features = [feat for feat in FEATURE_NAMES
-                         if 'bulk' in feat or 'packet' in feat]
+        base_features = ['bulk', 'packet']
+        if self.consider_iat_features:
+            base_features.append('iat')
+
         cont_features = []
         for prefix in [FEATURE_PREFIX.client, FEATURE_PREFIX.server]:
-            for feature in base_features:
-                cont_features.append(prefix + feature)
+            for derivative in list(FEATURE_FUNCTIONS.keys()):
+                for base in base_features:
+                    cont_features.append(prefix + base + derivative)
         return cont_features
 
     def _filter_non_existing_features(self, data: pd.DataFrame):
@@ -137,25 +144,42 @@ class Featurizer:
         def calc_flow_packet_stats(flow):
             subflow = flow[:2 * DEFAULT_PACKET_LIMIT_PER_FLOW]
             packets = flows_to_packets(subflow)
-            packets_from = packets[packets[:, 0] > 0, 0]
-            packets_to = packets[packets[:, 0] < 0, 0] * -1
+            from_idx = packets[:, 0] > 0
+            to_idx = packets[:, 0] < 0
+
             stats = {}
-            for direction, packets in zip(
+            for direction, packet_idx in zip(
                     (FEATURE_PREFIX.server, FEATURE_PREFIX.client),
-                    (packets_from, packets_to)
+                    (from_idx, to_idx)
             ):
                 try:
-                    stats.update(calc_parameter_stats(packets, direction, 'packet'))
+                    ps_derivatives = calc_parameter_stats(np.abs(packets[packet_idx, 0]), direction, 'packet')
+                    stats.update(ps_derivatives)
                 except ValueError:
                     continue
+
+                if self.consider_iat_features:
+                    try:
+                        iat_derivatives = calc_parameter_stats(packets[packet_idx, 1], direction, 'iat')
+                        stats.update(iat_derivatives)
+                    except ValueError:
+                        continue
+
             return stats
 
         if any(FEATURE_PREFIX.server + feature in data.columns for feature in CONTINUOUS_NAMES):
             logger.warning('packet stats has been found in dataframe, skipping calculation')
             return data
+
+        tmp_path = pathlib.Path('/tmp') / (get_df_hash(data) + '_iat_' + str(self.consider_iat_features))
+        if tmp_path.is_file():
+            logger.info('found cached dataset version, loading...')
+            return read_dataset(tmp_path, True)
+
         raw = data.filter(regex='raw_')
-        pandarallel.initialize()
         packet_stats = raw.parallel_apply(calc_flow_packet_stats, axis=1, raw=True, result_type='expand').tolist()
         packet_stats = pd.DataFrame(packet_stats).fillna(0)
-        logger.info('calculated packet stats from raw packet sizes')
-        return data.join(packet_stats)
+        logger.info('calculated the derivatives from raw features')
+        data = data.join(packet_stats)
+        save_dataset(data, save_to=tmp_path)
+        return data
