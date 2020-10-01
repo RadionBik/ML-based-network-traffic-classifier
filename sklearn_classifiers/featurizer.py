@@ -1,13 +1,17 @@
-from typing import Tuple
 import logging
 import pathlib
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import torch
 from pandarallel import pandarallel
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
+from tqdm import tqdm
+from transformers import GPT2Model
 
+from evaluation_utils.modeling import flows_to_packets
 from flow_parsing.features import (
     FEATURE_PREFIX,
     FEATURE_FUNCTIONS,
@@ -16,15 +20,80 @@ from flow_parsing.features import (
     calc_parameter_stats
 )
 from flow_parsing.utils import get_df_hash, save_dataset, read_dataset
-from evaluation_utils.modeling import flows_to_packets
+from gpt_model.tokenizer import PacketTokenizer
 from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
-
 
 logger = logging.getLogger(__name__)
 pandarallel.initialize()
 
 
-class Featurizer:
+class BaseFeaturizer:
+    def __init__(self, raw_feature_num, consider_iat_features=True, target_column=TARGET_CLASS_COLUMN):
+        self.target_encoder = LabelEncoder()
+        self.target_column = target_column
+
+        self.raw_features = generate_raw_feature_names(
+            raw_feature_num,
+            base_features=('packet', 'iat') if consider_iat_features else ('packet',)
+        )
+
+    def encode_targets(self, data: pd.DataFrame) -> np.ndarray:
+        return self.target_encoder.transform(data[self.target_column])
+
+    def fit_target_encoder(self, data: pd.DataFrame) -> np.ndarray:
+        return self.target_encoder.fit_transform(data[self.target_column])
+
+    def fit_transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError
+
+    def transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError
+
+
+class TransformerFeatureExtractor(BaseFeaturizer):
+    def __init__(self, transformer_pretrained_path, raw_feature_num):
+        super().__init__(raw_feature_num, consider_iat_features=True)
+        assert raw_feature_num > 0, 'raw packet sequence length must be > 0'
+        self.tokenizer = PacketTokenizer.from_pretrained(transformer_pretrained_path,
+                                                         flow_size=raw_feature_num)
+        feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path)
+        self.feature_extractor = feature_extractor.eval()
+
+    def _get_transformer_features(self, df, batch_size=1024):
+        tmp_path = pathlib.Path('/tmp') / (get_df_hash(df) + '_transformer_features')
+        if tmp_path.is_file():
+            logger.info('found cached transformer features, loading...')
+            return read_dataset(tmp_path, True)
+
+        merged_tensor = np.empty((len(df), self.feature_extractor.config.hidden_size))
+        iter_num = len(df) // batch_size
+        for iteration in tqdm(range(iter_num)):
+            start_idx = iteration * batch_size
+            end_idx = (iteration + 1) * batch_size
+            raw_subset = df[self.raw_features].iloc[start_idx:end_idx]
+            encoded_flows = self.tokenizer.batch_encode_packets(raw_subset)
+            with torch.no_grad():
+                output = self.feature_extractor(**encoded_flows)
+            output = output[0]  # last hidden state (batch_size, sequence_length, hidden_size)
+            # average over temporal dimension
+            output = output.mean(dim=1).numpy()
+            merged_tensor[start_idx:end_idx, :] = output
+
+        save_dataset(pd.DataFrame(merged_tensor), tmp_path)
+        return merged_tensor
+
+    def fit_transform_encode(self, data):
+        X_feat = self._get_transformer_features(data)
+        y = self.fit_target_encoder(data)
+        return X_feat, y
+
+    def transform_encode(self, data):
+        X_feat = self._get_transformer_features(data)
+        y = self.encode_targets(data)
+        return X_feat, y
+
+
+class Featurizer(BaseFeaturizer):
     """
     Featurizer processes features from a pandas object by merging results from scalers, one-hot encoders
     and encodes target labels
@@ -38,10 +107,9 @@ class Featurizer:
                  raw_feature_num=0,
                  consider_iat_features=False,
                  target_column=TARGET_CLASS_COLUMN):
+        super().__init__(raw_feature_num, consider_iat_features, target_column)
 
-        self.target_encoder = LabelEncoder()
-        self.transformer = None
-        self.target_column = target_column
+        self.column_converter = None
 
         self.consider_iat_features = consider_iat_features
         self.consider_tcp_flags = consider_tcp_flags
@@ -49,6 +117,7 @@ class Featurizer:
 
         self.categorical_features = ['ip_proto'] if categorical_features is None else categorical_features
         self.cont_features = self._get_cont_features() if cont_features is None else cont_features
+        self.try_extract_derivative_features = cont_features is None
 
         if self.consider_j3a:
             self.categorical_features.extend(['ndpi_j3ac', 'ndpi_j3as'])
@@ -56,11 +125,6 @@ class Featurizer:
         if self.consider_tcp_flags:
             self.categorical_features.extend([f'{FEATURE_PREFIX.client}found_tcp_flags',
                                               f'{FEATURE_PREFIX.server}found_tcp_flags'])
-
-        self.raw_features = generate_raw_feature_names(
-            raw_feature_num,
-            base_features=('packet', 'iat') if consider_iat_features else ('packet',)
-        )
 
     def _get_cont_features(self):
         # here we expect features to be consistent with flow_parser's
@@ -94,8 +158,15 @@ class Featurizer:
                            f'{set(self.categorical_features) - data_features}')
             self.categorical_features = found_features
 
+    def _parse_derivatives_if_needed(self, data):
+        if self.try_extract_derivative_features:
+            data = self.calc_packets_stats_from_raw(data)
+        return data
+
     def _fit_transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """ init transformers upon actual fitting to check for non-existing columns """
+        data = self._parse_derivatives_if_needed(data)
+
         self._filter_non_existing_features(data)
         feature_set = []
 
@@ -111,10 +182,10 @@ class Featurizer:
             # TODO replace with PacketScaler
             feature_set.append(('raw_features', StandardScaler(), self.raw_features))
 
-        self.transformer = ColumnTransformer(feature_set)
+        self.column_converter = ColumnTransformer(feature_set)
 
-        X_train = self.transformer.fit_transform(data)
-        y_train = self.target_encoder.fit_transform(data[self.target_column])
+        X_train = self.column_converter.fit_transform(data)
+        y_train = self.fit_target_encoder(data)
         logger.info(f'{X_train.shape[0]} train samples with {self.n_classes} classes')
         return X_train, y_train
 
@@ -125,23 +196,22 @@ class Featurizer:
         return self._fit_transform_encode(data)
 
     def transform(self, data: pd.DataFrame) -> np.ndarray:
-        X_test = self.transformer.transform(data)
+        data = self._parse_derivatives_if_needed(data)
+        X_test = self.column_converter.transform(data)
         return X_test
 
     def transform_encode(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
-        X_test = self.transformer.transform(data)
-        y_test = self.target_encoder.transform(data[self.target_column])
+        data = self._parse_derivatives_if_needed(data)
+        X_test = self.column_converter.transform(data)
+        y_test = self.encode_targets(data)
         return X_test, y_test
-
-    def encode(self, data: pd.DataFrame) -> np.ndarray:
-        return self.target_encoder.transform(data[self.target_column])
 
     @property
     def n_classes(self):
         return len(self.target_encoder.classes_)
 
     def calc_packets_stats_from_raw(self, data: pd.DataFrame):
-        def calc_flow_packet_stats(flow):
+        def calc_flow_packet_stats(flow: np.ndarray):
             subflow = flow[:2 * DEFAULT_PACKET_LIMIT_PER_FLOW]
             packets = flows_to_packets(subflow)
             from_idx = packets[:, 0] > 0
