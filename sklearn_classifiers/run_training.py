@@ -5,7 +5,7 @@ import neptune
 from sklearn.model_selection import train_test_split
 from flow_parsing import read_dataset
 from evaluation_utils.classification import Reporter
-from sklearn_classifiers.featurizer import Featurizer
+from sklearn_classifiers.featurizer import Featurizer, TransformerFeatureExtractor
 from sklearn_classifiers.utils import read_classifier_settings, initialize_classifiers
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, TARGET_CLASS_COLUMN, RANDOM_SEED
 
@@ -68,8 +68,13 @@ def _parse_args():
         action='store_true',
         default=False
     )
+    parser.add_argument(
+        '--transformer_model_path',
+        help='path to the pretrained transformer, if specified, shadows other feature-related arguments except'
+             'for the number of raw features to use'
+    )
 
-    parser.add_argument('--log-neptune', dest='log_neptune', action='store_true', default=False)
+    parser.add_argument('--log_neptune', dest='log_neptune', action='store_true', default=False)
     args = parser.parse_args()
     return args
 
@@ -89,18 +94,21 @@ def main():
                                              test_size=1 / 4,
                                              random_state=RANDOM_SEED)
 
-    featurizer = Featurizer(
-        cont_features=None if args.continuous else [],
-        categorical_features=None if args.categorical else [],
-        raw_feature_num=args.raw,
-        consider_j3a=False,
-        consider_tcp_flags=False,
-        consider_iat_features=args.use_iat,
-        target_column=args.target_column,
-    )
-    if args.continuous:
-        df_train = featurizer.calc_packets_stats_from_raw(df_train)
-        df_test = featurizer.calc_packets_stats_from_raw(df_test)
+    if args.transformer_model_path:
+        featurizer = TransformerFeatureExtractor(
+            args.transformer_model_path,
+            args.raw
+        )
+    else:
+        featurizer = Featurizer(
+            cont_features=None if args.continuous else [],
+            categorical_features=None if args.categorical else [],
+            raw_feature_num=args.raw,
+            consider_j3a=False,
+            consider_tcp_flags=False,
+            consider_iat_features=args.use_iat,
+            target_column=args.target_column,
+        )
 
     X_train, y_train = featurizer.fit_transform_encode(df_train)
     X_test, y_test = featurizer.transform_encode(df_test)

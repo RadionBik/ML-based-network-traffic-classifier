@@ -16,6 +16,7 @@ from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
+from .knn_cosine import KNeighborsCosineClassifier
 import settings
 
 logger = logging.getLogger(__file__)
@@ -31,6 +32,7 @@ REGISTERED_CLASSES = {
         LogisticRegression,
         OneVsOneClassifier,
         KNeighborsClassifier,
+        KNeighborsCosineClassifier,
     ]
 }
 
