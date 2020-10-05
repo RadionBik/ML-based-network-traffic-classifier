@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sklearn_classifiers.knn_cosine import cos_dist, top_k_cosine_similar, voter
+from sklearn_classifiers.knn_cosine import cos_dist, top_k_cosine_similar, voter, KNeighborsCosineClassifier
 
 
 @pytest.fixture()
@@ -33,3 +33,13 @@ def test_target_assignment(keys):
     top_2_for_3_queries = np.array([[1, 0], [2, 0], [1, 2]])
     votes = voter(targets[top_2_for_3_queries])
     assert votes.tolist() == [2, 0, 2]
+
+
+def test_knn_cos(keys):
+    targets = np.array([2, 0, 2, 1])
+    clf = KNeighborsCosineClassifier(2)
+    clf.fit(keys, targets)
+    X_test = np.array([[0.9, 0, 0]])
+    pred = clf.predict(X_test)
+    assert pred.tolist() == [2]
+

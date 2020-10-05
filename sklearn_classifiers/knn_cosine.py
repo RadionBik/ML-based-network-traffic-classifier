@@ -1,10 +1,11 @@
-from collections import Counter
 import logging
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
-from tqdm import tqdm
+
+from sklearn_classifiers.utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +43,10 @@ class KNeighborsCosineClassifier:
     custom K-nn based on cosine similarity
     """
 
-    def __init__(self, n_neighbours=3, *args, **kwargs):
+    def __init__(self, n_neighbours=3):
         self.n_neighbours = n_neighbours
         self.X_train: np.ndarray = np.nan
         self.y_train: np.ndarray = np.nan
-        random_state = kwargs['random_state']
-        if random_state is not None:
-            # although I suppose it is already deterministic
-            np.random.seed(random_state)
 
     def fit(self, X, y):
         X_train = X.values if isinstance(X, pd.DataFrame) else X
@@ -63,11 +60,8 @@ class KNeighborsCosineClassifier:
     def predict(self, X, batch_size=1024):
         X = X.values if isinstance(X, pd.DataFrame) else X
         X = np.array(X)
-        iter_num = X.shape[0] // batch_size
         predictions = np.empty(X.shape[0])
-        for iteration in tqdm(range(iter_num)):
-            start_idx = iteration * batch_size
-            end_idx = (iteration + 1) * batch_size
+        for start_idx, end_idx in iterate_batch_indexes(X, batch_size):
             top_indexes = top_k_cosine_similar(query=X[start_idx:end_idx], keys=self.X_train, k=self.n_neighbours)
             predictions[start_idx:end_idx] = voter(self.y_train[top_indexes])
         return predictions

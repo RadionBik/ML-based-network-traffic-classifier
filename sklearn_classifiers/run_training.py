@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from flow_parsing import read_dataset
 from evaluation_utils.classification import Reporter
 from sklearn_classifiers.featurizer import Featurizer, TransformerFeatureExtractor
-from sklearn_classifiers.utils import read_classifier_settings, initialize_classifiers
+from sklearn_classifiers.clf_utils import read_classifier_settings, initialize_classifiers
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, TARGET_CLASS_COLUMN, RANDOM_SEED
 
 logger = logging.getLogger(__name__)

@@ -8,7 +8,6 @@ import torch
 from pandarallel import pandarallel
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
-from tqdm import tqdm
 from transformers import GPT2Model
 
 from evaluation_utils.modeling import flows_to_packets
@@ -22,6 +21,7 @@ from flow_parsing.features import (
 from flow_parsing.utils import get_df_hash, save_dataset, read_dataset
 from gpt_model.tokenizer import PacketTokenizer
 from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
+from .utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
 pandarallel.initialize()
@@ -62,14 +62,11 @@ class TransformerFeatureExtractor(BaseFeaturizer):
     def _get_transformer_features(self, df, batch_size=1024):
         tmp_path = pathlib.Path('/tmp') / (get_df_hash(df) + '_transformer_features')
         if tmp_path.is_file():
-            logger.info('found cached transformer features, loading...')
+            logger.info(f'found cached transformer features, loading {tmp_path}...')
             return read_dataset(tmp_path, True)
 
         merged_tensor = np.empty((len(df), self.feature_extractor.config.hidden_size))
-        iter_num = len(df) // batch_size
-        for iteration in tqdm(range(iter_num)):
-            start_idx = iteration * batch_size
-            end_idx = (iteration + 1) * batch_size
+        for start_idx, end_idx in iterate_batch_indexes(df, batch_size):
             raw_subset = df[self.raw_features].iloc[start_idx:end_idx]
             encoded_flows = self.tokenizer.batch_encode_packets(raw_subset)
             with torch.no_grad():
