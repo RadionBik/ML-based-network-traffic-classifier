@@ -1,13 +1,13 @@
 import logging
 from collections import Counter
 
-import falconn
 import numpy as np
 import pandas as pd
+import puffinn
 from scipy.spatial.distance import cdist
 
-from sklearn_classifiers.utils import iterate_batch_indexes
 from settings import RANDOM_SEED
+from sklearn_classifiers.utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
 
@@ -78,40 +78,33 @@ class KNeighborsCosineClassifier:
 
 
 class KNeighborsLshClassifier:
+    """
+    PUFFINN - Parameterless and Universal Fast Finding of Nearest Neighbors
+    https://arxiv.org/pdf/1906.12211.pdf
 
-    def __init__(self, n_neighbours=3, n_lsh_tables=50, n_bit_hash=18, n_probes=50, random_state=RANDOM_SEED):
+    time: 12m
+    perf:
+    accuracy          0.981759  0.981759  0.981759      0.981759
+    macro avg         0.865334  0.861639  0.860683  96705.000000
+    weighted avg      0.981953  0.981759  0.981810  96705.000000
+
+    it is really close to the perf of grid-search K-nn approach but much faster
+
+    ONNG-NGT (https://github.com/yahoojapan/NGT/wiki) might be even faster, but these results suffice so far
+    """
+    def __init__(self, n_neighbours=3, search_recall=0.995, memory_limit=1*1024**3, random_state=RANDOM_SEED):
         self.target_classes: np.ndarray = np.nan
         self.n_neighbours = n_neighbours
-        self.n_lsh_tables = n_lsh_tables
-        self.n_bit_hash = n_bit_hash
-        self.n_probes = n_probes
-        self.random_state = random_state
-        self._dataset_centers: np.ndarray
-        self._table_params: falconn.LSHConstructionParameters
-        self._table: falconn.LSHIndex
-        self.query_object = None
+        self.memory_limit = memory_limit
+        self.search_recall = search_recall
+        self.lsh_table: puffinn.Index
 
     def _construct_table(self, dataset: np.ndarray):
-        params_cp = falconn.LSHConstructionParameters()
-        params_cp.dimension = dataset.shape[1]
-        params_cp.lsh_family = falconn.LSHFamily.Hyperplane
-        params_cp.distance_function = falconn.DistanceFunction.EuclideanSquared
-        params_cp.l = self.n_lsh_tables
-        # we set one rotation, since the data is dense enough,
-        # for sparse data set it to 2
-        params_cp.num_rotations = 1
-        params_cp.seed = self.random_state
-        # we want to use all the available threads to set up
-        params_cp.num_setup_threads = 0
-        params_cp.storage_hash_table = falconn.StorageHashTable.BitPackedFlatHashTable
-        # we build 18-bit hashes so that each table has
-        # 2^18 bins; this is a good choise since 2^18 is of the same
-        # order of magnitude as the number of data points
-        falconn.compute_number_of_hash_functions(self.n_bit_hash, params_cp)
-        self._table_params = params_cp
-        self._table = falconn.LSHIndex(params_cp)
-        self._table.setup(dataset)
-        return self._table.construct_query_object()
+        self.lsh_table = puffinn.Index('angular', dataset.shape[1], self.memory_limit)
+        for v in dataset:
+            self.lsh_table.insert(v.tolist())
+        logger.info('building index table...')
+        self.lsh_table.rebuild()
 
     def _check_set_features(self, X):
         X = X.values if isinstance(X, pd.DataFrame) else np.array(X)
@@ -124,14 +117,14 @@ class KNeighborsLshClassifier:
         self._dataset_centers = np.mean(X_train, axis=0)
         X_train -= self._dataset_centers
         self.target_classes = y.values if isinstance(y, pd.Series) else np.array(y)
-        self.query_object = self._construct_table(X_train)
+        self._construct_table(X_train)
         logger.info('fit KNeighborsLshClassifier')
 
     def predict(self, X):
         X = self._check_set_features(X) - self._dataset_centers
 
         def query_predictor(query):
-            top_indexes = self.query_object.find_k_nearest_neighbors(query, self.n_neighbours)
+            top_indexes = self.lsh_table.search(query.tolist(), self.n_neighbours, self.search_recall)
             return voter(self.target_classes[top_indexes])
 
         predictions = np.apply_along_axis(query_predictor, axis=1, arr=X)
