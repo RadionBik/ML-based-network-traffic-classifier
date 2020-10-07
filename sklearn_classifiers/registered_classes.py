@@ -6,7 +6,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 
-from sklearn_classifiers.knn_cosine import KNeighborsCosineClassifier
+from sklearn_classifiers.knn_cosine import KNeighborsCosineClassifier, KNeighborsLshClassifier
 
 REGISTERED_CLASSES = {
     cls.__name__: cls for cls in [
@@ -19,5 +19,6 @@ REGISTERED_CLASSES = {
         OneVsOneClassifier,
         KNeighborsClassifier,
         KNeighborsCosineClassifier,
+        KNeighborsLshClassifier
     ]
 }
