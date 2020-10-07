@@ -70,7 +70,7 @@ def initialize_classifiers(config: dict,
         else:
             kwargs['random_state'] = random_seed
 
-        if params['type'] in ['KNeighborsClassifier', 'KNeighborsCosineClassifier']:
+        if params['type'].startswith('KNeighbors'):
             kwargs.pop('random_state')
         classifier = classes[params['type']](**kwargs)
         holder = ClassifierHolder(classifier, params.get('param_search_space', {}), shortcut_name=key)

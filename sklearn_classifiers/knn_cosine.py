@@ -6,7 +6,6 @@ import pandas as pd
 import puffinn
 from scipy.spatial.distance import cdist
 
-from settings import RANDOM_SEED
 from sklearn_classifiers.utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,7 @@ class KNeighborsLshClassifier:
 
     ONNG-NGT (https://github.com/yahoojapan/NGT/wiki) might be even faster, but these results suffice so far
     """
-    def __init__(self, n_neighbours=3, search_recall=0.995, memory_limit=1*1024**3, random_state=RANDOM_SEED):
+    def __init__(self, n_neighbours=3, search_recall=0.995, memory_limit=1*1024**3):
         self.target_classes: np.ndarray = np.nan
         self.n_neighbours = n_neighbours
         self.memory_limit = memory_limit
