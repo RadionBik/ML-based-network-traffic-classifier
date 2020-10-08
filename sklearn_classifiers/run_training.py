@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from flow_parsing import read_dataset
 from evaluation_utils.classification import Reporter
 from sklearn_classifiers.featurizer import Featurizer, TransformerFeatureExtractor
-from sklearn_classifiers.clf_utils import read_classifier_settings, initialize_classifiers
+from sklearn_classifiers.clf_utils import read_classifier_settings, initialize_classifiers, fit_optimal_classifier
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, TARGET_CLASS_COLUMN, RANDOM_SEED
 
 logger = logging.getLogger(__name__)
@@ -34,33 +34,36 @@ def _parse_args():
         help='column within the .csv denoting target variable',
         default=TARGET_CLASS_COLUMN
     )
-
+    parser.add_argument(
+        "--packets",
+        dest='packets',
+        type=int,
+        help="specify the first N packets to use for classification, "
+             "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW,",
+        default=DEFAULT_PACKET_LIMIT_PER_FLOW
+    )
     parser.add_argument(
         '--continuous',
         dest='continuous',
         action='store_true',
-        help="when enabled, continuous feature from dataset are accounted for, "
-             "e.g. percentiles, sums, etc. of packet size. Defaults to False"
+        help="when enabled, continuous derivative features from dataset are accounted for, "
+             "e.g. percentiles, sums, etc. of packet size. Defaults to False",
+        default=False
     )
-    parser.set_defaults(continuous=False)
-
     parser.add_argument(
         '--categorical',
         dest='categorical',
         action='store_true',
         help="when enabled, categorical feature from dataset are accounted for, "
-             "e.g. IP protocol. Defaults to False"
+             "e.g. IP protocol. Defaults to False",
+        default=False
     )
-    parser.set_defaults(categorical=False)
-
     parser.add_argument(
         "--raw",
         dest='raw',
-        type=int,
-        help="specify the first N packet raw features to use for classification, "
-             "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW,"
-             "set to 0 to use only the derivatives",
-        default=DEFAULT_PACKET_LIMIT_PER_FLOW
+        action='store_true',
+        help="when enabled, raw packet sequences are used for classification",
+        default=False
     )
     parser.add_argument(
         '--use_iat',
@@ -71,8 +74,9 @@ def _parse_args():
     parser.add_argument(
         '--transformer_model_path',
         help='path to the pretrained transformer, if specified, shadows other feature-related arguments except'
-             'for the number of raw features to use'
+             'for the number of packets to use'
     )
+    parser.add_argument('--search_hyper_parameters', dest='search_hyper_parameters', action='store_true', default=False)
 
     parser.add_argument('--log_neptune', dest='log_neptune', action='store_true', default=False)
     args = parser.parse_args()
@@ -117,8 +121,10 @@ def main():
     clfs = initialize_classifiers(classifier_settings)
 
     for model_name, model_holder in clfs.items():
-        #     fit_optimal_classifier(model_holder, X_train, y_train)
-        model_holder.classifier.fit(X_train, y_train)
+        if args.search_hyper_parameters:
+            fit_optimal_classifier(model_holder, X_train, y_train)
+        else:
+            model_holder.classifier.fit(X_train, y_train)
         y_pred = model_holder.classifier.predict(X_test)
         reporter = Reporter(y_test, y_pred, model_holder.name, featurizer.target_encoder.classes_)
 
