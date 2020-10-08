@@ -84,7 +84,7 @@ def fit_optimal_classifier(classifier: ClassifierHolder, X_train, y_train):
     search = GridSearchCV(classifier.classifier,
                           param_grid=classifier.param_search_space,
                           n_jobs=-1,
-                          scoring=make_scorer(metrics.jaccard_score, average='micro'),
+                          scoring=make_scorer(metrics.f1_score, average='macro'),
                           cv=2,
                           refit=True,
                           verbose=1)

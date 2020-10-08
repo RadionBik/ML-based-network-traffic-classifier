@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import puffinn
 from scipy.spatial.distance import cdist
-
+from sklearn.base import BaseEstimator
 from sklearn_classifiers.utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def batch_voter(class_votes):
     return top_or_first
 
 
-class KNeighborsCosineClassifier:
+class KNeighborsCosineClassifier(BaseEstimator):
     """
     custom K-nn based on cosine similarity
 
@@ -76,7 +76,7 @@ class KNeighborsCosineClassifier:
         return predictions
 
 
-class KNeighborsLshClassifier:
+class KNeighborsLshClassifier(BaseEstimator):
     """
     PUFFINN - Parameterless and Universal Fast Finding of Nearest Neighbors
     https://arxiv.org/pdf/1906.12211.pdf
