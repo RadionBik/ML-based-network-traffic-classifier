@@ -63,7 +63,7 @@ def inter_packet_times_from_timestamps(timestamps):
     return ipt
 
 
-def generate_raw_feature_names(flow_size, base_features: Tuple[str] = ('packet', 'iat')):
+def generate_raw_feature_names(flow_size, base_features: Tuple[str] = ('packet', 'iat')) -> list:
     return [f'raw_{feature}{index}'
             for index in range(flow_size)
             for feature in base_features]

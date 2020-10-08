@@ -1,6 +1,6 @@
 import logging
 import pathlib
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -28,12 +28,12 @@ pandarallel.initialize()
 
 
 class BaseFeaturizer:
-    def __init__(self, raw_feature_num, consider_iat_features=True, target_column=TARGET_CLASS_COLUMN):
+    def __init__(self, packet_num, consider_iat_features=True, target_column=TARGET_CLASS_COLUMN):
         self.target_encoder = LabelEncoder()
         self.target_column = target_column
 
-        self.raw_features = generate_raw_feature_names(
-            raw_feature_num,
+        self.raw_features: List[str] = generate_raw_feature_names(
+            packet_num,
             base_features=('packet', 'iat') if consider_iat_features else ('packet',)
         )
 
@@ -51,11 +51,11 @@ class BaseFeaturizer:
 
 
 class TransformerFeatureExtractor(BaseFeaturizer):
-    def __init__(self, transformer_pretrained_path, raw_feature_num):
-        super().__init__(raw_feature_num, consider_iat_features=True)
-        assert raw_feature_num > 0, 'raw packet sequence length must be > 0'
+    def __init__(self, transformer_pretrained_path, packet_num):
+        super().__init__(packet_num, consider_iat_features=True)
+        assert packet_num > 0, 'raw packet sequence length must be > 0'
         self.tokenizer = PacketTokenizer.from_pretrained(transformer_pretrained_path,
-                                                         flow_size=raw_feature_num)
+                                                         flow_size=packet_num)
         feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path)
         self.feature_extractor = feature_extractor.eval()
 
@@ -97,17 +97,19 @@ class Featurizer(BaseFeaturizer):
     """
 
     def __init__(self,
+                 packet_num,
                  cont_features=None,
                  categorical_features=None,
                  consider_tcp_flags=True,
                  consider_j3a=True,
-                 raw_feature_num=0,
+                 consider_raw_features=True,
                  consider_iat_features=False,
                  target_column=TARGET_CLASS_COLUMN):
-        super().__init__(raw_feature_num, consider_iat_features, target_column)
+        super().__init__(packet_num, consider_iat_features, target_column)
 
         self.column_converter = None
-
+        if not consider_raw_features:
+            self.raw_features = []
         self.consider_iat_features = consider_iat_features
         self.consider_tcp_flags = consider_tcp_flags
         self.consider_j3a = consider_j3a

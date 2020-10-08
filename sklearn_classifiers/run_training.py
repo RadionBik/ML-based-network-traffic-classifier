@@ -35,8 +35,8 @@ def _parse_args():
         default=TARGET_CLASS_COLUMN
     )
     parser.add_argument(
-        "--packets",
-        dest='packets',
+        "--packet_num",
+        dest='packet_num',
         type=int,
         help="specify the first N packets to use for classification, "
              "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW,",
@@ -101,13 +101,14 @@ def main():
     if args.transformer_model_path:
         featurizer = TransformerFeatureExtractor(
             args.transformer_model_path,
-            args.raw
+            args.packet_num
         )
     else:
         featurizer = Featurizer(
+            packet_num=args.packet_num,
             cont_features=None if args.continuous else [],
             categorical_features=None if args.categorical else [],
-            raw_feature_num=args.raw,
+            consider_raw_features=args.raw,
             consider_j3a=False,
             consider_tcp_flags=False,
             consider_iat_features=args.use_iat,
