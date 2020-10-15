@@ -137,7 +137,7 @@ def main():
             neptune.init(NEPTUNE_PROJECT)
             parameters = vars(args)
             parameters.update({'classifier': model_name})
-            parameters.update(classifier_settings[model_name]['params'])
+            parameters.update(model_holder.classifier.get_params(deep=False))
 
             neptune.create_experiment(name='sklearn', params=parameters)
             neptune.log_artifact((reporter.save_dir / report_file).as_posix())
