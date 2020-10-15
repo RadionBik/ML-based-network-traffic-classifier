@@ -7,7 +7,7 @@ from time import time
 import yaml
 from sklearn import metrics
 from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 
 import settings
 from .registered_classes import REGISTERED_CLASSES
@@ -44,7 +44,7 @@ def _process_settings(settings: dict) -> None:
             for pname, pvalue in ssp.items():
                 if isinstance(pvalue, dict) and 'from' in pvalue:
                     step = pvalue.get('step', 1)
-                    ssp[pname] = list(range(pvalue['from'], pvalue['till'], step))
+                    ssp[pname] = list(range(pvalue['from'], pvalue['till']+1, step))
 
 
 def read_classifier_settings(config_path=None):
@@ -78,14 +78,14 @@ def initialize_classifiers(config: dict,
     return result
 
 
-def fit_optimal_classifier(classifier: ClassifierHolder, X_train, y_train):
+def fit_optimal_classifier(classifier: ClassifierHolder, X_train, y_train, n_folds=2):
     """ searches through pre-defined parameter space from the .yaml, and fits classifier with found parameters """
     logger.info('Searching parameters for {} through {}'.format(classifier.name, classifier.param_search_space))
     search = GridSearchCV(classifier.classifier,
                           param_grid=classifier.param_search_space,
                           n_jobs=-1,
                           scoring=make_scorer(metrics.f1_score, average='macro'),
-                          cv=2,
+                          cv=StratifiedKFold(n_folds, shuffle=True, random_state=settings.RANDOM_SEED),
                           refit=True,
                           verbose=1)
 
