@@ -40,7 +40,7 @@ def classif_config():
                     'param_search_space': {'estimator__C': [0.1, 1, 10], 'estimator__loss': ['squared_hinge'],
                                            'estimator__dual': [True, False]}},
             'DecTree': {'type': 'DecisionTreeClassifier',
-                        'param_search_space': {'max_depth': [6, 9, 12, 15, 18], 'max_features': [10, 20, 30],
+                        'param_search_space': {'max_depth': [6, 9, 12, 15, 18], 'max_features': [10, 20, 30, 40],
                                                'criterion': ['entropy']}},
             'GradBoost': {'type': 'GradientBoostingClassifier',
                           'param_search_space': {'n_estimators': [50], 'max_depth': [2, 3, 4, 5],
