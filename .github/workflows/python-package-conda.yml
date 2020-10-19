@@ -18,6 +18,12 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         $CONDA/bin/conda env update --file requirements.yaml -n base
+        git clone https://github.com/puffinn/puffinn /opt/puffinn && \
+        cd /opt/puffinn && \
+        $CONDA/bin/python3.7 setup.py build && \
+        $CONDA/bin/python3.7 setup.py install && \
+        cd -
+
     - name: Lint with flake8
       run: |
         $CONDA/bin/conda install flake8

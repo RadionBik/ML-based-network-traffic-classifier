@@ -60,6 +60,5 @@ test classifiers:
         --train_dataset csv_files/example_20packets.csv 
         --target_column ndpi_category 
         --continuous 
-        --raw 0
    ```
 
