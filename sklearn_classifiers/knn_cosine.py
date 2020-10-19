@@ -91,7 +91,7 @@ class KNeighborsLshClassifier(BaseEstimator):
 
     ONNG-NGT (https://github.com/yahoojapan/NGT/wiki) might be even faster, but these results suffice so far
     """
-    def __init__(self, n_neighbours=3, search_recall=0.995, memory_limit=1*1024**3):
+    def __init__(self, n_neighbours=1, search_recall=0.995, memory_limit=1*1024**3):
         self.target_classes: np.ndarray = np.nan
         self.n_neighbours = n_neighbours
         self.memory_limit = memory_limit
