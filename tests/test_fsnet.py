@@ -1,8 +1,8 @@
 from torch.utils.data import DataLoader
 import torch
 
-from nn_classifiers.dataset import ClassificationQuantizedDatasetNoAttention
-from nn_classifiers.models import FSNETClassifier
+from fs_net.dataset import ClassificationQuantizedDatasetNoAttention
+from fs_net.model import FSNETClassifier
 
 
 def test_forward(tokenizer, raw_dataset_file):
