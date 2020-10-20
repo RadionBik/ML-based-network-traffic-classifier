@@ -130,7 +130,7 @@ def main():
         project_name=NEPTUNE_PROJECT,
         experiment_name=args.neptune_experiment_name,
         params=vars(args),
-        upload_source_files=[(BASE_DIR / nn_classifier.__module__).as_posix() + '.py']
+        upload_source_files=[(BASE_DIR / 'fs_net/model.py').as_posix()]
     )
 
     checkpoint_dir = f'{nn_classifier.__class__.__name__}_checkpoints'
