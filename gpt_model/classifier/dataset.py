@@ -17,7 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class ClassificationQuantizedDataset(Dataset):
-    def __init__(self, tokenizer: PacketTokenizer, dataset_path: str, label_encoder: LabelEncoder = None):
+    def __init__(
+        self, tokenizer: PacketTokenizer,
+        dataset_path: str,
+        label_encoder: LabelEncoder = None,
+        target_column=TARGET_CLASS_COLUMN
+    ):
         assert os.path.isfile(dataset_path)
 
         dataset_path = pathlib.Path(dataset_path)
@@ -27,14 +32,14 @@ class ClassificationQuantizedDataset(Dataset):
         self.tokenizer = tokenizer
 
         raw_flows = pd.read_csv(self.source_file,
-                                usecols=self.tokenizer.packet_quantizer.raw_columns + [TARGET_CLASS_COLUMN])
+                                usecols=self.tokenizer.packet_quantizer.raw_columns + [target_column])
 
         if label_encoder is None:
-            self.target_encoder = LabelEncoder().fit(raw_flows[TARGET_CLASS_COLUMN].values)
+            self.target_encoder = LabelEncoder().fit(raw_flows[target_column].values)
         else:
             self.target_encoder = label_encoder
 
-        self.targets = self.target_encoder.transform(raw_flows[TARGET_CLASS_COLUMN].values)
+        self.targets = self.target_encoder.transform(raw_flows[target_column].values)
         self.raw_flows = raw_flows.loc[:, tokenizer.packet_quantizer.raw_columns].values
         logger.info('initialized dataset')
 
