@@ -27,5 +27,5 @@ output in eq. 17.
 
 Moreover, current training script doesn't use only packet features as described
 in the paper, but rather uses K-Means centroids for (PS, IPT) features, which
-can is usually beneficial to the final performance due to presence of the
+ is usually beneficial to the final performance due to presence of the
  timing information. 

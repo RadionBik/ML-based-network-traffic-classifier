@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import NeptuneLogger
 from torch.utils.data import DataLoader, random_split
 
 from gpt_model.tokenizer import PacketTokenizer
-from fs_net.dataset import ClassificationQuantizedDatasetNoAttention
+from fs_net.dataset import SimpleClassificationQuantizedDataset
 from fs_net.model import FSNETClassifier
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, TARGET_CLASS_COLUMN
 
@@ -83,17 +83,17 @@ def main():
     tokenizer = PacketTokenizer.from_pretrained(args.tokenizer_path,
                                                 flow_size=args.packet_num)
 
-    train_val_dataset = ClassificationQuantizedDatasetNoAttention(tokenizer,
-                                                                  dataset_path=args.train_dataset,
-                                                                  target_column=args.target_column)
+    train_val_dataset = SimpleClassificationQuantizedDataset(tokenizer,
+                                                             dataset_path=args.train_dataset,
+                                                             target_column=args.target_column)
     train_part_len = int(len(train_val_dataset) * 0.9)
     train_dataset, val_dataset = random_split(train_val_dataset,
                                               [train_part_len, len(train_val_dataset) - train_part_len])
 
-    test_dataset = ClassificationQuantizedDatasetNoAttention(tokenizer,
-                                                             dataset_path=args.test_dataset,
-                                                             label_encoder=train_val_dataset.target_encoder,
-                                                             target_column=args.target_column)
+    test_dataset = SimpleClassificationQuantizedDataset(tokenizer,
+                                                        dataset_path=args.test_dataset,
+                                                        label_encoder=train_val_dataset.target_encoder,
+                                                        target_column=args.target_column)
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=args.batch_size,
