@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+from functools import partial
 from pprint import pprint
 
 import torch
@@ -10,7 +11,7 @@ from pytorch_lightning.loggers import NeptuneLogger
 from torch.utils.data import DataLoader, random_split
 
 from gpt_model.tokenizer import PacketTokenizer
-from fs_net.dataset import SimpleClassificationQuantizedDataset
+from fs_net.dataset import SimpleClassificationQuantizedDataset, ClassificationPacketSizeDataset
 from fs_net.model import FSNETClassifier
 from settings import BASE_DIR, DEFAULT_PACKET_LIMIT_PER_FLOW, NEPTUNE_PROJECT, TARGET_CLASS_COLUMN
 
@@ -40,6 +41,20 @@ def _parse_args():
         help="specify the first N packets to use for classification, "
              "defaults to settings.py:DEFAULT_PACKET_LIMIT_PER_FLOW,",
         default=DEFAULT_PACKET_LIMIT_PER_FLOW
+    )
+    parser.add_argument(
+        "--use_packet_size_only",
+        dest='use_packet_size_only',
+        action='store_true',
+        help="set to use only (truncated) packet size sequences instead of quantized (PS, IPT)",
+        default=False
+    )
+    parser.add_argument(
+        "--dynamic_ps_range",
+        dest='dynamic_ps_range',
+        help="dynamic range for PS parameter which implicitly sets Embedding layer dim, effective only along"
+             "with --use_packet_size_only option",
+        default=5000
     )
     parser.add_argument(
         '--tokenizer_path',
@@ -80,20 +95,24 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     cpu_counter = os.cpu_count()
 
-    tokenizer = PacketTokenizer.from_pretrained(args.tokenizer_path,
-                                                flow_size=args.packet_num)
+    if args.use_packet_size_only:
+        n_tokens = args.dynamic_ps_range
+        ds_class = partial(ClassificationPacketSizeDataset, max_size_range=n_tokens)
+    else:
+        tokenizer = PacketTokenizer.from_pretrained(args.tokenizer_path,
+                                                    flow_size=args.packet_num)
+        n_tokens = len(tokenizer)
+        ds_class = partial(SimpleClassificationQuantizedDataset, tokenizer=tokenizer)
 
-    train_val_dataset = SimpleClassificationQuantizedDataset(tokenizer,
-                                                             dataset_path=args.train_dataset,
-                                                             target_column=args.target_column)
+    train_val_dataset = ds_class(dataset_path=args.train_dataset,
+                                 target_column=args.target_column)
     train_part_len = int(len(train_val_dataset) * 0.9)
     train_dataset, val_dataset = random_split(train_val_dataset,
                                               [train_part_len, len(train_val_dataset) - train_part_len])
 
-    test_dataset = SimpleClassificationQuantizedDataset(tokenizer,
-                                                        dataset_path=args.test_dataset,
-                                                        label_encoder=train_val_dataset.target_encoder,
-                                                        target_column=args.target_column)
+    test_dataset = ds_class(dataset_path=args.test_dataset,
+                            label_encoder=train_val_dataset.target_encoder,
+                            target_column=args.target_column)
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=args.batch_size,
@@ -114,7 +133,7 @@ def main():
 
     class_labels = train_val_dataset.target_encoder.classes_
 
-    nn_classifier = FSNETClassifier(args, class_labels=class_labels, n_tokens=len(tokenizer))
+    nn_classifier = FSNETClassifier(args, class_labels=class_labels, n_tokens=n_tokens)
 
     early_stop_callback = EarlyStopping(
         monitor='val_loss',

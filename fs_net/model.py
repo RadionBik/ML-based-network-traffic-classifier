@@ -4,7 +4,8 @@ from nn_classifiers.models import BaseClassifier
 
 
 class FSNETClassifier(BaseClassifier):
-    def __init__(self, config,
+    def __init__(self,
+                 config,
                  class_labels,
                  n_tokens,
                  embedding_dim=128,
