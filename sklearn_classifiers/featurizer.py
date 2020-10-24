@@ -54,13 +54,14 @@ class TransformerFeatureExtractor(BaseFeaturizer):
     def __init__(self, transformer_pretrained_path, packet_num):
         super().__init__(packet_num, consider_iat_features=True)
         assert packet_num > 0, 'raw packet sequence length must be > 0'
+        self._pretrained_path = pathlib.Path(transformer_pretrained_path)
         self.tokenizer = PacketTokenizer.from_pretrained(transformer_pretrained_path,
                                                          flow_size=packet_num)
         feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path)
         self.feature_extractor = feature_extractor.eval()
 
     def _get_transformer_features(self, df, batch_size=1024):
-        tmp_path = pathlib.Path('/tmp') / (get_df_hash(df) + '_transformer_features')
+        tmp_path = pathlib.Path('/tmp') / (get_df_hash(df) + self._pretrained_path.stem)
         if tmp_path.is_file():
             logger.info(f'found cached transformer features, loading {tmp_path}...')
             return read_dataset(tmp_path, True)
