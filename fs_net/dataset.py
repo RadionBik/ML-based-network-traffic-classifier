@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleClassificationQuantizedDataset(ClassificationQuantizedDataset):
+    """ no attention mask and no dict-like output """
     def __getitem__(self, i: int) -> Tuple[torch.Tensor, torch.Tensor]:
         enc_flow = self.tokenizer.batch_encode_packets(self.raw_flows.reshape(1, -1).astype(np.float64),
                                                        add_special_tokens=False,
