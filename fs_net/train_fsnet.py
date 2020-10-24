@@ -54,6 +54,7 @@ def _parse_args():
         dest='dynamic_ps_range',
         help="dynamic range for PS parameter which implicitly sets Embedding layer dim, effective only along"
              "with --use_packet_size_only option",
+        type=int,
         default=5000
     )
     parser.add_argument(
