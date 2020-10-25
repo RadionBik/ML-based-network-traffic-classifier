@@ -18,14 +18,10 @@ paper:
 }
 ```
 From my point of view, there is some inconsistency between the paper's 
-description and implementation found in:
-
-https://github.com/WSPTTH/FS-Net
-
+description and implementation found in https://github.com/WSPTTH/FS-Net, 
 particularly regarding the presence of Selu activation for the final 
 output in eq. 17.
 
-Moreover, current training script doesn't use only packet features as described
-in the paper, but rather uses K-Means centroids for (PS, IPT) features, which
- is usually beneficial to the final performance due to presence of the
- timing information. 
+As a bonus, the training script has 2 options for the model's input: 
+ (i) either packet size sequences (as in the paper), or (ii) K-Means centroids 
+ for (PS, IPT) features (similarly to the transformer model in this repo). 
