@@ -76,6 +76,14 @@ def _parse_args():
         help='path to the pretrained transformer, if specified, shadows other feature-related arguments except'
              'for the number of packets to use'
     )
+    parser.add_argument(
+        '--mask_first_token',
+        help='masks first sequence token when extracting features from transformer model, useful when the model was'
+             'pretrained with class-specific first tokens',
+        action='store_true',
+        default=False
+    )
+
     parser.add_argument('--search_hyper_parameters', dest='search_hyper_parameters', action='store_true', default=False)
 
     parser.add_argument('--log_neptune', dest='log_neptune', action='store_true', default=False)
@@ -101,7 +109,8 @@ def main():
     if args.transformer_model_path:
         featurizer = TransformerFeatureExtractor(
             args.transformer_model_path,
-            args.packet_num
+            args.packet_num,
+            mask_first_token=args.mask_first_token,
         )
     else:
         featurizer = Featurizer(
