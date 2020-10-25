@@ -51,27 +51,36 @@ class BaseFeaturizer:
 
 
 class TransformerFeatureExtractor(BaseFeaturizer):
-    def __init__(self, transformer_pretrained_path, packet_num):
+    def __init__(self, transformer_pretrained_path, packet_num, mask_first_token=False, device=None):
         super().__init__(packet_num, consider_iat_features=True)
         assert packet_num > 0, 'raw packet sequence length must be > 0'
+        self._pretrained_path = pathlib.Path(transformer_pretrained_path)
         self.tokenizer = PacketTokenizer.from_pretrained(transformer_pretrained_path,
                                                          flow_size=packet_num)
-        feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path)
+        if not device:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path).to(self.device)
         self.feature_extractor = feature_extractor.eval()
+        self.mask_first_token = mask_first_token
 
     def _get_transformer_features(self, df, batch_size=1024):
-        tmp_path = pathlib.Path('/tmp') / (get_df_hash(df) + '_transformer_features')
+        filename = (get_df_hash(df) + self._pretrained_path.stem + ('_mask_first' if self.mask_first_token else ''))
+        tmp_path = pathlib.Path('/tmp') / filename
         if tmp_path.is_file():
             logger.info(f'found cached transformer features, loading {tmp_path}...')
             return read_dataset(tmp_path, True)
 
+        logger.info(f'did not find cached transformer features at {tmp_path}, processing...')
         merged_tensor = np.empty((len(df), self.feature_extractor.config.hidden_size))
         for start_idx, end_idx in iterate_batch_indexes(df, batch_size):
             raw_subset = df[self.raw_features].iloc[start_idx:end_idx]
-            encoded_flows = self.tokenizer.batch_encode_packets(raw_subset)
+            encoded_flows = self.tokenizer.batch_encode_packets(raw_subset).to(self.device)
+            if self.mask_first_token:
+                encoded_flows['attention_mask'][:, 0] = 0
             with torch.no_grad():
                 output = self.feature_extractor(**encoded_flows)
-            output = output[0]  # last hidden state (batch_size, sequence_length, hidden_size)
+            output = output[0].to('cpu')  # last hidden state (batch_size, sequence_length, hidden_size)
             # average over temporal dimension
             output = output.mean(dim=1).numpy()
             merged_tensor[start_idx:end_idx, :] = output
