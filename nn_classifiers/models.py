@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import logging
 import torch
@@ -15,7 +15,7 @@ logger = logging.getLogger(__file__)
 
 
 class BaseClassifier(LightningModule):
-    def __init__(self, config, class_labels: List[str], *args, **kwargs):
+    def __init__(self, config, class_labels: Optional[List[str]], *args, **kwargs):
         super().__init__()
         self.hparams = config
         self.class_labels = class_labels

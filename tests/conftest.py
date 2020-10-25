@@ -6,6 +6,7 @@ import pytest
 
 from flow_parsing import features
 import settings
+from gpt_model.tokenizer import PacketTokenizer
 
 
 @pytest.fixture
@@ -16,6 +17,11 @@ def dataset():
 @pytest.fixture
 def raw_dataset_folder():
     return settings.TEST_STATIC_DIR / 'raw_csv'
+
+
+@pytest.fixture
+def raw_dataset_file(raw_dataset_folder):
+    return raw_dataset_folder / 'example_raw_20packets.csv'
 
 
 @pytest.fixture
@@ -72,3 +78,8 @@ def quantizer_checkpoint():
 @pytest.fixture
 def pcap_example_path():
     return (settings.BASE_DIR / 'flow_parsing/static/example.pcap').as_posix()
+
+
+@pytest.fixture()
+def tokenizer(quantizer_checkpoint):
+    return PacketTokenizer.from_pretrained(quantizer_checkpoint, flow_size=20)

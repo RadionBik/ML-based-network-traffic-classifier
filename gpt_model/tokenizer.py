@@ -10,8 +10,8 @@ import torch
 from transformers import PreTrainedTokenizerBase
 from transformers.tokenization_utils_base import TensorType, BatchEncoding
 
-from .quantizer import PacketQuantizer
 from settings import logger
+from .quantizer import PacketQuantizer
 
 
 class PacketTokenizer(PreTrainedTokenizerBase):
@@ -96,6 +96,11 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         else:
             raise NotImplementedError
 
+    def _pad_flow(self, flow: np.ndarray) -> np.ndarray:
+        non_packets_mask = flow == self.packet_quantizer.non_packet_value
+        flow[non_packets_mask] = self.pad_token_id
+        return flow
+
     def _expand_with_special_tokens(self, flow: np.ndarray, first_token) -> np.ndarray:
         # truncate to account for the tokens
         flow = flow[:self.max_model_input_sizes - 2]
@@ -103,7 +108,7 @@ class PacketTokenizer(PreTrainedTokenizerBase):
         non_packets_mask = flow == self.packet_quantizer.non_packet_value
         flow[non_packets_mask] = self.pad_token_id
         # we either pick index of the first True value or append
-        end_of_flow = non_packets_mask.argmax() if (non_packets_mask).any() else len(flow)
+        end_of_flow = non_packets_mask.argmax() if non_packets_mask.any() else len(flow)
         flow = np.insert(flow, end_of_flow, self.eos_token_id)
         return flow
 
@@ -128,6 +133,8 @@ class PacketTokenizer(PreTrainedTokenizerBase):
             first_token = self.convert_tokens_to_ids(target_class) if target_class is not None else self.bos_token_id
             expander = partial(self._expand_with_special_tokens, first_token=first_token)
             clusters = np.apply_along_axis(expander, axis=1, arr=clusters)
+        else:
+            clusters = np.apply_along_axis(self._pad_flow, axis=1, arr=clusters)
 
         result = {'input_ids': clusters.astype(np.int64)}
 
