@@ -5,7 +5,8 @@ from sklearn_classifiers.knn_cosine import (
     top_k_cosine_similar,
     batch_voter,
     KNeighborsCosineClassifier,
-    KNeighborsLshClassifier
+    KNeighborsPuffinnClassifier,
+    KNeighborsNGTClassifier
 )
 
 
@@ -43,17 +44,9 @@ def test_target_assignment(keys):
 
 def test_knn_cos(keys):
     targets = np.array([2, 0, 2, 1])
-    clf = KNeighborsCosineClassifier(2)
-    clf.fit(keys, targets)
-    X_test = np.array([[0.9, 0, 0]])
-    pred = clf.predict(X_test)
-    assert pred.tolist() == [2]
-
-
-def test_knn_cos_lsh(keys):
-    targets = np.array([2, 0, 2, 1])
-    clf = KNeighborsLshClassifier(2)
-    clf.fit(keys, targets)
-    X_test = np.array([[0.9, 0, 0]])
-    pred = clf.predict(X_test)
-    assert pred.tolist() == [2]
+    for classifier_class in [KNeighborsCosineClassifier, KNeighborsPuffinnClassifier, KNeighborsNGTClassifier]:
+        clf = classifier_class(2)
+        clf.fit(keys, targets)
+        X_test = np.array([[0.9, 0, 0]])
+        pred = clf.predict(X_test)
+        assert pred.tolist() == [2]
