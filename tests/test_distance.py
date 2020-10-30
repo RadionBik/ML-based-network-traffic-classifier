@@ -97,7 +97,7 @@ def test_ann_deviation(raw_dataset_with_targets, raw_dataset, tokenizer, dummy_g
     pfn_acc = accuracy_score(y_test, pfn_preds)
     assert accuracy == pfn_acc
 
-    assert np.isclose(accuracy_score(ref_preds, pfn_preds), 0.98, atol=1e-2)
+    assert accuracy_score(ref_preds, pfn_preds) == 1.0
 
     ngt_preds = KNeighborsNGTClassifier(n_neighbors=1,
                                         search_epsilon=0.2,
@@ -106,4 +106,4 @@ def test_ann_deviation(raw_dataset_with_targets, raw_dataset, tokenizer, dummy_g
                                         ).fit(X_train, y_train).predict(X_test)
 
     assert accuracy_score(ref_preds, ngt_preds) == 1.0
-    assert np.isclose(accuracy_score(ngt_preds, pfn_preds), 0.98, atol=1e-2)
+    assert accuracy_score(ngt_preds, pfn_preds) == 1.0
