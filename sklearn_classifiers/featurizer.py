@@ -20,7 +20,7 @@ from flow_parsing.features import (
 )
 from flow_parsing.utils import get_df_hash, save_dataset, read_dataset
 from gpt_model.tokenizer import PacketTokenizer
-from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
+from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW, CACHE_DIR
 from .utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class TransformerFeatureExtractor(BaseFeaturizer):
                     self._pretrained_path.stem +
                     ('_mask_first' if self.mask_first_token else '') +
                     ('_reinitialize' if self.reinitialize else ''))
-        tmp_path = pathlib.Path('/tmp') / filename
+        tmp_path = CACHE_DIR / filename
         if tmp_path.is_file():
             logger.info(f'found cached transformer features, loading {tmp_path}...')
             return read_dataset(tmp_path, True)
@@ -263,7 +263,7 @@ class Featurizer(BaseFeaturizer):
             logger.warning('packet stats has been found in dataframe, skipping calculation')
             return data
 
-        tmp_path = pathlib.Path('/tmp') / (get_df_hash(data) + '_iat_' + str(self.consider_iat_features))
+        tmp_path = CACHE_DIR / (get_df_hash(data) + '_iat_' + str(self.consider_iat_features))
         if tmp_path.is_file():
             logger.info('found cached dataset version, loading...')
             return read_dataset(tmp_path, True)
