@@ -1,5 +1,12 @@
 import numpy as np
 import pytest
+import torch
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, normalize
+from transformers import set_seed, GPT2Model, GPT2Config
+
+from settings import RANDOM_SEED
 from sklearn_classifiers.knn_cosine import (
     cos_dist,
     top_k_cosine_similar,
@@ -50,3 +57,53 @@ def test_knn_cos(keys):
         X_test = np.array([[0.9, 0, 0]])
         pred = clf.predict(X_test)
         assert pred.tolist() == [2]
+
+
+@pytest.fixture()
+def dummy_gpt2():
+    set_seed(RANDOM_SEED)
+
+    config = {
+        "vocab_size": 9906,
+        "n_positions": 128,
+        "n_ctx": 128,
+        "n_embd": 512,
+        "n_layer": 6,
+        "n_head": 8,
+     }
+    config = GPT2Config(**config)
+    model = GPT2Model(config)
+    return model
+
+
+def test_ann_deviation(raw_dataset_with_targets, raw_dataset, tokenizer, dummy_gpt2):
+
+    y = LabelEncoder().fit_transform(raw_dataset_with_targets['ndpi_app'])
+    encoded = tokenizer.batch_encode_packets(raw_dataset)
+    with torch.no_grad():
+        features = dummy_gpt2(**encoded)[0]
+
+    X = features.mean(dim=1).numpy()
+    X = normalize(X)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, shuffle=True, random_state=1)
+    ref_preds = KNeighborsCosineClassifier(n_neighbors=1).fit(X_train, y_train).predict(X_test)
+    # ref_preds = KNeighborsClassifier(n_neighbors=1, algorithm='brute').fit(X_train, y_train).predict(X_test)
+
+    accuracy = accuracy_score(y_test, ref_preds)
+
+    pfn_preds = KNeighborsPuffinnClassifier(n_neighbors=1).fit(X_train, y_train).predict(X_test)
+
+    pfn_acc = accuracy_score(y_test, pfn_preds)
+    assert accuracy == pfn_acc
+
+    assert np.isclose(accuracy_score(ref_preds, pfn_preds), 0.98, atol=1e-2)
+
+    ngt_preds = KNeighborsNGTClassifier(n_neighbors=1,
+                                        search_epsilon=0.2,
+                                        optimize_n_edges=False,
+                                        optimize_search_params=False
+                                        ).fit(X_train, y_train).predict(X_test)
+
+    assert accuracy_score(ref_preds, ngt_preds) == 1.0
+    assert np.isclose(accuracy_score(ngt_preds, pfn_preds), 0.98, atol=1e-2)
