@@ -1,7 +1,8 @@
 import logging
+
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from transformers import GPT2Model
+from transformers import GPT2Model, GPT2Config
 from transformers.optimization import AdamW
 
 from nn_classifiers.models import BaseClassifier
@@ -17,14 +18,20 @@ class GPT2Classifier(BaseClassifier):
             pretrained_model_path,
             dropout=0.1,
             freeze_pretrained_part=True,
-            reinitialize=False
+            reinitialize=False,
+            n_layers=6,
     ):
         super().__init__(config, class_labels)
 
-        self.gpt2 = GPT2Model.from_pretrained(pretrained_model_path)
         if reinitialize:
             logger.info('resetting model weights')
-            self.gpt2.init_weights()
+            config = GPT2Config.from_json_file(pretrained_model_path + '/config.json')
+            config = config.to_dict()
+            config['n_layer'] = n_layers
+            config = GPT2Config.from_dict(config)
+            self.gpt2 = GPT2Model(config)
+        else:
+            self.gpt2 = GPT2Model.from_pretrained(pretrained_model_path)
 
         self.dropout = torch.nn.Dropout(dropout)
         self.fc = torch.nn.Linear(self.gpt2.config.n_embd, self.output_dim)

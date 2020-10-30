@@ -83,6 +83,11 @@ def _parse_args():
         action='store_true',
         default=False
     )
+    parser.add_argument(
+        '--reinitialize',
+        action='store_true',
+        default=False
+    )
 
     parser.add_argument('--search_hyper_parameters', dest='search_hyper_parameters', action='store_true', default=False)
 
@@ -111,6 +116,7 @@ def main():
             args.transformer_model_path,
             args.packet_num,
             mask_first_token=args.mask_first_token,
+            reinitialize=args.reinitialize
         )
     else:
         featurizer = Featurizer(

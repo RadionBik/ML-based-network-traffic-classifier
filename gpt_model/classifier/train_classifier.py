@@ -61,6 +61,12 @@ def main():
         default=False
     )
     parser.add_argument(
+        '--n_layers',
+        default=6,
+        type=int,
+        help='number of transformer layers to use, only in use when --reinitialize is provided'
+    )
+    parser.add_argument(
         '--log_neptune',
         dest='log_neptune',
         action='store_true',
@@ -123,7 +129,8 @@ def main():
         pretrained_model_path=args.pretrained_path,
         dropout=args.fc_dropout,
         freeze_pretrained_part=args.freeze_pretrained_model,
-        reinitialize=args.reinitialize
+        reinitialize=args.reinitialize,
+        n_layers=args.n_layers
     )
 
     early_stop_callback = EarlyStopping(
@@ -140,7 +147,7 @@ def main():
         project_name=NEPTUNE_PROJECT,
         experiment_name=args.neptune_experiment_name,
         params=vars(args),
-        upload_source_files=[(BASE_DIR / 'nn_classifiers/models.py').as_posix()]
+        upload_source_files=[(BASE_DIR / 'gpt_model/classifier/model.py').as_posix()]
     )
 
     checkpoint_dir = f'{nn_classifier.__class__.__name__}_checkpoints'

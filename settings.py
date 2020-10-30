@@ -22,6 +22,7 @@ DATASET_DIR = BASE_DIR / 'datasets'
 
 PCAP_OUTPUT_DIR = BASE_DIR / 'csv_files'
 REPORT_DIR = BASE_DIR / 'reports'
+CACHE_DIR = pathlib.Path('/tmp')
 
 IP_PROTO_MAPPING = _read_protocol_mapping()
 RANDOM_SEED = 1

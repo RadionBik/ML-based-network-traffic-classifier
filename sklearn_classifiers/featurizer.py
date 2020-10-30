@@ -20,7 +20,7 @@ from flow_parsing.features import (
 )
 from flow_parsing.utils import get_df_hash, save_dataset, read_dataset
 from gpt_model.tokenizer import PacketTokenizer
-from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW
+from settings import TARGET_CLASS_COLUMN, DEFAULT_PACKET_LIMIT_PER_FLOW, CACHE_DIR
 from .utils import iterate_batch_indexes
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,14 @@ class BaseFeaturizer:
 
 
 class TransformerFeatureExtractor(BaseFeaturizer):
-    def __init__(self, transformer_pretrained_path, packet_num, mask_first_token=False, device=None):
+    def __init__(
+            self,
+            transformer_pretrained_path,
+            packet_num,
+            mask_first_token=False,
+            reinitialize=False,
+            device=None
+    ):
         super().__init__(packet_num, consider_iat_features=True)
         assert packet_num > 0, 'raw packet sequence length must be > 0'
         self._pretrained_path = pathlib.Path(transformer_pretrained_path)
@@ -61,12 +68,19 @@ class TransformerFeatureExtractor(BaseFeaturizer):
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         feature_extractor = GPT2Model.from_pretrained(transformer_pretrained_path).to(self.device)
+        self.reinitialize = reinitialize
+        if self.reinitialize:
+            logger.info('resetting model weights')
+            feature_extractor.init_weights()
         self.feature_extractor = feature_extractor.eval()
         self.mask_first_token = mask_first_token
 
     def _get_transformer_features(self, df, batch_size=1024):
-        filename = (get_df_hash(df) + self._pretrained_path.stem + ('_mask_first' if self.mask_first_token else ''))
-        tmp_path = pathlib.Path('/tmp') / filename
+        filename = (get_df_hash(df) +
+                    self._pretrained_path.stem +
+                    ('_mask_first' if self.mask_first_token else '') +
+                    ('_reinitialize' if self.reinitialize else ''))
+        tmp_path = CACHE_DIR / filename
         if tmp_path.is_file():
             logger.info(f'found cached transformer features, loading {tmp_path}...')
             return read_dataset(tmp_path, True)
@@ -249,7 +263,7 @@ class Featurizer(BaseFeaturizer):
             logger.warning('packet stats has been found in dataframe, skipping calculation')
             return data
 
-        tmp_path = pathlib.Path('/tmp') / (get_df_hash(data) + '_iat_' + str(self.consider_iat_features))
+        tmp_path = CACHE_DIR / (get_df_hash(data) + '_iat_' + str(self.consider_iat_features))
         if tmp_path.is_file():
             logger.info('found cached dataset version, loading...')
             return read_dataset(tmp_path, True)
