@@ -10,14 +10,14 @@ flow generators.
  
 That gives an idea to develop a common neural network framework for 
 creating statistical generators and classifiers. A reasonable choice
- can be Transformer architecture that has shown SOTA on numerous NLP benchmarks.
+ can be Transformer architecture that showed SOTA on numerous NLP benchmarks.
 Since we need a generative model, GPT-2 seems to be a good option to start 
 with, luckily, `huggingface` did all the dirty stuff implementing it.
 
-In order to use the models, the initial flow feature space (PS + IPT) 
-has to be quantized into discrete sequences. K-Means is often used
-for this purpose and given the expected dataset size (millions of flows),
- I used libKMCUDA's implementation to transform prior scaled 
+In order to use the models, the initial packet feature space (PS + IPT) 
+has to be quantized into discrete sequences. I used K-Means for this 
+purpose and given the expected dataset size (millions of flows),
+the libKMCUDA's implementation was adopted to transform prior scaled 
  packet features into integer sequences of cluster numbers (see 
  `quantizer.py`).
 
@@ -35,4 +35,17 @@ Check the following link for pre-trained models and used datasets:
 http://51.77.194.175:9000/minio/traffic-classifier/
 ```
 
-More info is coming soon!
+More details can be found in the following paper:
+```
+@article{bikmukhamedov2020,
+  author = {Bikmukhamedov, R. F. and Nadeev, A.F.},
+  title = {Generative transformer framework for network traffic generation and classification},
+  journal = {T-Comm},
+  year = {2020},
+  number = {11},
+  vol = {14},
+  pages = {64--71},
+}
+```
+
+available at http://media-publisher.ru/wp-content/uploads/Nom-11-2020-s.pdf

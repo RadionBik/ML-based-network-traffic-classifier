@@ -6,6 +6,7 @@ UPDATE 23/05/2020: Replaced custom flow-parsing mechanism with NFStream
 
 UPDATE 17/09/2020: Added pytorch classifiers, including transformer-based one
 
+UPDATE 30/10/2020: ANN classifiers (NGT, LSH), FS-NET baseline
 ## Key features
 
 * Configurable feature extraction from network flows via `NFStream`.
@@ -29,6 +30,8 @@ from `.pcap` into `.csv` via `NFStream`. It can be
 
 * `evaluation_utils` contains utilities for evaluation of traffic 
 classifiers and generators.
+  
+* `fs_net` is a reimplementation of FS-NET classifier
 
 * `sklearn_classifiers` contains wrapper for sklearn-like classifiers 
 and example pipeline script. Used models and their parameters are specified
