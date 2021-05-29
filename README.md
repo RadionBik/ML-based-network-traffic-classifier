@@ -65,3 +65,25 @@ test classifiers:
         --continuous 
    ```
 
+## Publications
+
+If you find the code or datasets useful for your research, please, 
+cite one of the following papers:
+
+```
+@article{Bikmukhamedov2021MultiClassNT,
+  title={Multi-Class Network Traffic Generators and Classifiers Based on Neural Networks},
+  author={Bikmukhamedov, Radion and Nadeev, Adel},
+  journal={2021 Systems of Signals Generating and Processing in the Field of on Board Communications},
+  year={2021},
+  pages={1-7},
+  url = {https://doi.org/10.1109/IEEECONF51389.2021.9416067}
+}
+
+@CONFERENCE{bikmukhamedov2019,
+  author = {Bikmukhamedov, R. F. and Nadeev, A. F.},
+  title = {Lightweight Machine Learning Classifiers of IoT Traffic Flows},
+  booktitle = {2019 Systems of Signal Synchronization, Generating and Processing in Telecommunications},
+  year = {2019},
+}
+```

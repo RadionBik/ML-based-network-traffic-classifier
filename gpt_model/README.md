@@ -35,8 +35,17 @@ Check the following link for pre-trained models and used datasets:
 http://51.77.194.175:9000/minio/traffic-classifier/
 ```
 
-More details can be found in the following paper:
+More details can be found in the following papers (please, cite the first one):
 ```
+@article{Bikmukhamedov2021MultiClassNT,
+  title={Multi-Class Network Traffic Generators and Classifiers Based on Neural Networks},
+  author={R. Bikmukhamedov and A. Nadeev},
+  journal={2021 Systems of Signals Generating and Processing in the Field of on Board Communications},
+  year={2021},
+  pages={1-7},
+  url = {https://doi.org/10.1109/IEEECONF51389.2021.9416067}
+}
+
 @article{bikmukhamedov2020,
   author = {Bikmukhamedov, R. F. and Nadeev, A.F.},
   title = {Generative transformer framework for network traffic generation and classification},
@@ -45,7 +54,6 @@ More details can be found in the following paper:
   number = {11},
   vol = {14},
   pages = {64--71},
+  url = {http://media-publisher.ru/wp-content/uploads/Nom-11-2020-s.pdf}
 }
 ```
-
-available at http://media-publisher.ru/wp-content/uploads/Nom-11-2020-s.pdf
