@@ -1,6 +1,8 @@
 
 ## Transformer-based network traffic generator and classifier 
 
+### Introduction
+
 Given currents trends in web-protocol development (e.g. eSNI, DNS-over-*),
  plain text information in traffic sessions is disappearing. In order
 to classify the flows, one of few options is to use statistical discriminators
@@ -30,10 +32,19 @@ fine-tuned on a classification task.
 denoting traffic class that afterwards allows to sample class-specific
 packet clusters. Moreover, the same benefits as above are preserved.
  
-Check the following link for pre-trained models and used datasets: 
+### Pre-trained models and datasets: 
+
+It is necessary to download a MinIO client to your computer as per:
+https://docs.min.io/docs/minio-client-quickstart-guide.html
+
+To get the complete data, execute the following commands:
 ```
-http://51.77.194.175:9000/minio/traffic-classifier/
+./mc alias set ext-anon http://195.201.38.68:9000
+./mc ls ext-anon/traffic-classifier
+./mc cp ext-anon/traffic-classifier .
 ```
+
+### Publications
 
 More details can be found in the following papers (please, cite the first one):
 ```
