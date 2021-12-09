@@ -6,7 +6,4 @@ difficult to repeat.
 The only module that can run as expected is `format_parsed_as_classification_dataset.py`
 
 After all, it should not be a problem, since the resulting datasets are 
-accessible via the link:
-```
-http://51.77.194.175:9000/minio/traffic-classifier/datasets/
-```
+accessible via the minio client as described in the upper-level [README.md](../README.md)

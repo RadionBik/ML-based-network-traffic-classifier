@@ -37,12 +37,17 @@ packet clusters. Moreover, the same benefits as above are preserved.
 It is necessary to download a MinIO client to your computer as per:
 https://docs.min.io/docs/minio-client-quickstart-guide.html
 
-To get the complete data, execute the following commands:
+To get the data, execute the following commands:
 ```
 ./mc alias set ext-anon http://195.201.38.68:9000
 ./mc ls ext-anon/traffic-classifier
 ./mc cp ext-anon/traffic-classifier .
 ```
+
+*Note: opening the URL in a browser leads to the administrator 
+console. To access the datasets and models you have to install MinIO client 
+as mentioned above.*
+
 
 ### Publications
 
