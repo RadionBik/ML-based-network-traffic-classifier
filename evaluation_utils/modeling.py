@@ -48,17 +48,17 @@ def plot_packets(packet_features, limit_packet_scale=False, save_to=None, ru_lan
     if isinstance(packet_features, pd.DataFrame):
         packet_features = packet_features.values
 
-    fig, ax = plt.subplots(figsize=(12, 7))
+    fig, ax = plt.subplots(figsize=(9, 6))
     plt.scatter(packet_features[:, 0], packet_features[:, 1], alpha=0.3)
     ax.set_title(f'Число кластеров: {packet_features.shape[0]}' if ru_lang else
                  f'Number of items: {packet_features.shape[0]}')
     if limit_packet_scale:
         ax.set_xlim(-1, 1)
     ax.grid(True)
-    ax.set_xlabel('размер пакета, байт / 1500' if ru_lang else
-                  'packet size, bytes / 1500')
-    ax.set_ylabel('log10(межпакетный интервал, µs)' if ru_lang else
-                  'log10(inter-packet time, µs)')
+    ax.set_xlabel('размер пакета (байт / 1500)' if ru_lang else
+                  'packet size (bytes / 1500)')
+    ax.set_ylabel('межпакетный интервал (log10(ms))' if ru_lang else
+                  'inter-packet time (log10(ms))')
     if save_to:
         plt.savefig(save_to, dpi=300)
 
