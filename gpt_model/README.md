@@ -44,6 +44,13 @@ To get the data, execute the following commands:
 ./mc cp ext-anon/traffic-classifier .
 ```
 
+where the first command will prompt you for user credentials:
+```
+Access Key: gpt_research
+Secret Key: mbmug8VDbRu5hqJ
+```
+
+
 *Note: opening the URL in a browser leads to the administrator 
 console. To access the datasets and models you have to install MinIO client 
 as mentioned above.*
